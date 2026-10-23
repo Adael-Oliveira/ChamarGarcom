@@ -1,0 +1,31 @@
+{
+  "name": "chamar-garcom",
+  "private": true,
+  "version": "2.0.0",
+  "type": "module",
+  "description": "Chamar Garçom — plataforma white-label de chamada de garçom por QR Code (React + Vite + Firebase)",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "emulators": "firebase emulators:start --only auth,firestore,storage --project demo-chamar-garcom",
+    "test:rules": "firebase emulators:exec --only firestore --project demo-chamar-garcom \"node --test tests/*.test.js\"",
+    "deploy:rules": "firebase deploy --only firestore:rules,storage"
+  },
+  "dependencies": {
+    "@fontsource-variable/bricolage-grotesque": "^5.3.0",
+    "@fontsource-variable/fraunces": "^5.3.0",
+    "@fontsource-variable/nunito": "^5.3.0",
+    "@fontsource-variable/onest": "^5.3.1",
+    "firebase": "^12.19.0",
+    "qrcode": "^1.5.4",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.2",
+    "@vitejs/plugin-react": "^5.2.0",
+    "firebase-tools": "15.32.1",
+    "vite": "^7.3.7"
+  }
+}

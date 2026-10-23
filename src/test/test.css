@@ -1,0 +1,71 @@
+.sim {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 24px clamp(16px, 3vw, 32px) 48px;
+}
+.sim-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 24px;
+}
+.sim-head h1 {
+  margin: 0;
+  font-family: var(--display);
+  font-size: 1.8rem;
+  letter-spacing: -0.02em;
+}
+.sim-head p {
+  margin: 4px 0 0;
+}
+.sim-actions,
+.sim-actions form {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.sim-actions .input {
+  width: 260px;
+  max-width: 100%;
+}
+.sim-phones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 28px;
+  justify-content: center;
+}
+.sim-phones figure {
+  margin: 0;
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+}
+.sim-phone {
+  width: 340px;
+  max-width: calc(100vw - 32px);
+  height: 700px;
+  padding: 10px;
+  border-radius: 46px;
+  background: #0b0c0f;
+  box-shadow: var(--shadow-lg);
+}
+.sim-phone iframe {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  border-radius: 37px;
+  background: #f6f6f4;
+}
+.empty {
+  padding: 48px 20px;
+  text-align: center;
+  border: 1px dashed var(--line-strong);
+  border-radius: 20px;
+  color: var(--ink-2);
+}
+.empty h3 {
+  margin: 0 0 6px;
+  color: var(--ink);
+}

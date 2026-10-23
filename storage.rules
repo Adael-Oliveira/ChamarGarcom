@@ -1,0 +1,25 @@
+rules_version = '2';
+
+// Chamar Garçom — regras do Firebase Storage
+// Só a equipe do restaurante envia/remove o cardápio (PDF até 20 MB).
+// Na primeira publicação, o console pede para o Storage consultar o Firestore: aceite.
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isAdminOf(rid) {
+      return request.auth != null
+        && firestore.exists(/databases/(default)/documents/admins/$(request.auth.uid))
+        && firestore.get(/databases/(default)/documents/admins/$(request.auth.uid)).data.restaurantId == rid;
+    }
+    match /menus/{rid}/{file} {
+      allow get: if true;
+      allow list: if isAdminOf(rid);
+      allow create, update: if isAdminOf(rid)
+        && request.resource.contentType == 'application/pdf'
+        && request.resource.size < 20 * 1024 * 1024;
+      allow delete: if isAdminOf(rid);
+    }
+    match /{all=**} {
+      allow read, write: if false;
+    }
+  }
+}

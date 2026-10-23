@@ -1,0 +1,58 @@
+body {
+  background: #f6f6f4;
+}
+.c-msg {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 24px 16px;
+  text-align: center;
+  color: #16181d;
+}
+.c-msg > div {
+  max-width: 360px;
+  background: #fff;
+  border-radius: 20px;
+  padding: 30px 24px;
+  box-shadow: 0 10px 30px -18px rgb(0 0 0 / 30%);
+}
+.c-msg h1 {
+  margin: 0 0 8px;
+  font-family: var(--display);
+  font-size: 1.4rem;
+}
+.c-msg p {
+  margin: 0;
+  color: #5d636f;
+}
+.c-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+}
+.c-sheet-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: calc(10px + env(safe-area-inset-top, 0px)) 16px 10px;
+  border-bottom: 1px solid #e3e4e8;
+}
+.c-sheet-bar strong {
+  flex: 1;
+}
+.c-sheet-bar button {
+  border: 0;
+  border-radius: 10px;
+  padding: 8px 14px;
+  background: var(--brand);
+  color: var(--brand-ink);
+  font-weight: 700;
+}
+.c-sheet iframe {
+  flex: 1;
+  border: 0;
+  width: 100%;
+}

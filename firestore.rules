@@ -1,0 +1,254 @@
+rules_version = '2';
+
+// =====================================================================
+//  Chamar Garçom — regras do Cloud Firestore
+//
+//  Equipe  = usuário logado com Google que tem admins/{uid} apontando para
+//            o restaurante (role 'owner' = responsável, 'staff' = equipe).
+//  Cliente = qualquer pessoa SEM login que conhece o token da mesa (QR Code).
+//
+//  O cliente pode: ler a mesa pelo token (sem listar), ler marca e
+//  configurações públicas, criar UMA chamada válida respeitando o intervalo
+//  (conferido aqui, no servidor) e acompanhar a própria chamada pelo ID.
+//  Nada mais.
+// =====================================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------- helpers ----------
+    function signedIn() { return request.auth != null; }
+    function me() { return request.auth.uid; }
+    function myEmail() { return request.auth.token.email.lower(); }
+    function emailVerified() { return request.auth.token.email_verified == true; }
+
+    function adminDoc() { return /databases/$(database)/documents/admins/$(me()); }
+    // getAfter: enxerga o estado depois da escrita atual (permite criar o
+    // restaurante e o primeiro administrador no mesmo lote)
+    function isAdminOf(rid) {
+      return signedIn() && existsAfter(adminDoc()) && getAfter(adminDoc()).data.restaurantId == rid;
+    }
+    function isOwnerOf(rid) {
+      return isAdminOf(rid) && getAfter(adminDoc()).data.role == 'owner';
+    }
+    function restaurantPath(rid) { return /databases/$(database)/documents/restaurants/$(rid); }
+    function platformPath() { return /databases/$(database)/documents/platform/config; }
+    function invitePath(email) { return /databases/$(database)/documents/invites/$(email); }
+    function settingsOf(rid) { return get(/databases/$(database)/documents/restaurants/$(rid)/settings/general).data; }
+    function callPath(rid, id) { return /databases/$(database)/documents/restaurants/$(rid)/calls/$(id); }
+    function statePath(rid, id) { return /databases/$(database)/documents/restaurants/$(rid)/tableState/$(id); }
+    function isTs(v) { return v is timestamp; }
+
+    // ---------- plataforma ----------
+    // Criado uma única vez, pela primeira pessoa que entra (vira dona da plataforma).
+    match /platform/config {
+      allow get: if signedIn();
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['ownerUid', 'signupOpen', 'createdAt'])
+        && request.resource.data.ownerUid == me()
+        && request.resource.data.signupOpen is bool
+        && request.resource.data.createdAt == request.time;
+      allow update: if signedIn() && resource.data.ownerUid == me()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['signupOpen'])
+        && request.resource.data.signupOpen is bool;
+      allow delete: if false;
+    }
+
+    // ---------- restaurantes ----------
+    match /restaurants/{rid} {
+      allow get: if isAdminOf(rid);
+      allow list: if false;
+      // Cadastro: só quem ainda não é admin de nada; precisa ser a primeira
+      // configuração da plataforma OU os cadastros estarem abertos.
+      allow create: if signedIn()
+        && !exists(adminDoc())
+        && request.resource.data.keys().hasOnly(['name', 'ownerUid', 'createdAt'])
+        && request.resource.data.ownerUid == me()
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 80
+        && request.resource.data.createdAt == request.time
+        && existsAfter(platformPath())
+        && (
+          getAfter(platformPath()).data.ownerUid == me()
+          || get(platformPath()).data.signupOpen == true
+        );
+      allow update: if isOwnerOf(rid)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name'])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 80;
+      allow delete: if false;
+
+      // ----- configurações (públicas: o cliente precisa ler) -----
+      function validGeneral(d) {
+        return d.keys().hasOnly(['callsEnabled', 'billEnabled', 'cooldownMinutes', 'menuUrl', 'menuFileName', 'menuPath', 'menuUpdatedAt', 'updatedAt'])
+          && d.callsEnabled is bool
+          && d.billEnabled is bool
+          && d.cooldownMinutes is int && d.cooldownMinutes >= 0 && d.cooldownMinutes <= 60
+          && (d.menuUrl == null || (d.menuUrl is string && d.menuUrl.size() < 2048 && d.menuUrl.matches('^https://.*')))
+          && (d.menuFileName == null || (d.menuFileName is string && d.menuFileName.size() < 200))
+          && (d.menuPath == null || (d.menuPath is string && d.menuPath.matches('^menus/' + rid + '/.*')));
+      }
+      function validBrand(d) {
+        return d.keys().hasOnly(['name', 'tagline', 'logo', 'primary', 'accent', 'style', 'updatedAt'])
+          && d.name is string && d.name.size() > 0 && d.name.size() <= 80
+          && (d.tagline == null || (d.tagline is string && d.tagline.size() <= 80))
+          && (d.logo == null || (d.logo is string && d.logo.size() < 250000 && d.logo.matches('^data:image/(png|webp|jpeg);base64,.*')))
+          && d.primary is string && d.primary.matches('^#[0-9a-fA-F]{6}$')
+          && d.accent is string && d.accent.matches('^#[0-9a-fA-F]{6}$')
+          && d.style in ['moderno', 'classico', 'leve'];
+      }
+      match /settings/{docId} {
+        allow get: if docId in ['general', 'brand'];
+        allow list: if isAdminOf(rid);
+        allow create, update: if (docId == 'general' && isAdminOf(rid) && validGeneral(request.resource.data))
+          || (docId == 'brand' && isOwnerOf(rid) && validBrand(request.resource.data));
+        allow delete: if false;
+      }
+
+      // ----- mesas (só a equipe) -----
+      function validTable(d) {
+        return d.keys().hasOnly(['number', 'token', 'active', 'createdAt', 'updatedAt'])
+          && d.keys().hasAll(['number', 'token', 'active'])
+          && d.number is int && d.number > 0 && d.number <= 9999
+          && d.token is string && d.token.size() >= 16
+          && d.active is bool;
+      }
+      match /tables/{tableId} {
+        allow read, delete: if isAdminOf(rid);
+        allow create, update: if isAdminOf(rid) && validTable(request.resource.data);
+      }
+
+      // ----- estado da mesa: última chamada (o intervalo é conferido aqui) -----
+      function validStateWrite(tableId) {
+        let d = request.resource.data;
+        let cp = callPath(rid, d.lastCallId);
+        return d.keys().hasOnly(['lastCallId', 'lastCallAt'])
+          && d.lastCallId is string
+          && d.lastCallAt == request.time
+          && !exists(cp)
+          && existsAfter(cp)
+          && getAfter(cp).data.tableId == tableId;
+      }
+      function cooldownOver() {
+        return request.time > resource.data.lastCallAt + duration.value(settingsOf(rid).cooldownMinutes, 'm');
+      }
+      match /tableState/{tableId} {
+        allow get: if true;
+        allow list: if isAdminOf(rid);
+        allow create: if validStateWrite(tableId);
+        allow update: if validStateWrite(tableId) && cooldownOver();
+        allow delete: if isAdminOf(rid);
+      }
+
+      // ----- chamadas -----
+      function validNewCall(callId) {
+        let d = request.resource.data;
+        let link = get(/databases/$(database)/documents/tableLinks/$(d.token)).data;
+        let s = settingsOf(rid);
+        return d.keys().hasOnly(['restaurantId', 'tableId', 'tableNumber', 'callId', 'token', 'reason', 'calledAt', 'viewedAt', 'status'])
+          && d.keys().hasAll(['restaurantId', 'tableId', 'tableNumber', 'callId', 'token', 'reason', 'calledAt', 'viewedAt', 'status'])
+          && d.callId == callId
+          && d.restaurantId == rid
+          && d.token is string
+          && link.restaurantId == rid
+          && link.tableId == d.tableId
+          && link.number == d.tableNumber
+          && link.active == true
+          && s.callsEnabled == true
+          && (d.reason == 'waiter' || (d.reason == 'bill' && s.billEnabled == true))
+          && d.status == 'PENDING'
+          && d.calledAt == request.time
+          && d.viewedAt == null
+          // obriga gravar o estado da mesa no mesmo lote (é lá que o intervalo é conferido)
+          && getAfter(statePath(rid, d.tableId)).data.lastCallId == callId;
+      }
+      function validCallUpdate() {
+        let d = request.resource.data;
+        let changed = d.diff(resource.data).affectedKeys();
+        return changed.hasOnly(['status', 'viewedAt', 'viewedBy', 'doneAt'])
+          && d.status in ['PENDING', 'VIEWED', 'DONE']
+          && (!changed.hasAny(['viewedAt']) || d.viewedAt == request.time)
+          && (!changed.hasAny(['doneAt']) || d.doneAt == request.time)
+          && (!changed.hasAny(['viewedBy']) || d.viewedBy == me());
+      }
+      match /calls/{callId} {
+        allow get: if true; // só quem conhece o ID (aleatório) da chamada
+        allow list: if isAdminOf(rid);
+        allow create: if validNewCall(callId);
+        allow update: if isAdminOf(rid) && validCallUpdate();
+        allow delete: if isOwnerOf(rid);
+      }
+    }
+
+    // ---------- índice público token → mesa ----------
+    function validLink(d) {
+      return d.keys().hasOnly(['restaurantId', 'tableId', 'number', 'active'])
+        && d.keys().hasAll(['restaurantId', 'tableId', 'number', 'active'])
+        && d.restaurantId is string && d.tableId is string
+        && d.number is int && d.number > 0
+        && d.active is bool;
+    }
+    match /tableLinks/{token} {
+      allow get: if true;
+      allow list: if false;
+      allow create: if token.size() >= 16 && isAdminOf(request.resource.data.restaurantId) && validLink(request.resource.data);
+      allow update: if isAdminOf(resource.data.restaurantId)
+        && request.resource.data.restaurantId == resource.data.restaurantId
+        && request.resource.data.tableId == resource.data.tableId
+        && validLink(request.resource.data);
+      allow delete: if isAdminOf(resource.data.restaurantId);
+    }
+
+    // ---------- equipe ----------
+    function validAdmin(d) {
+      return d.keys().hasOnly(['restaurantId', 'role', 'email', 'name', 'createdAt'])
+        && d.restaurantId is string
+        && d.role in ['owner', 'staff']
+        && d.email is string
+        && d.name is string && d.name.size() <= 120
+        && d.createdAt == request.time;
+    }
+    match /admins/{uid} {
+      // cada um lê o próprio; o restaurante lê a sua equipe (consulta por restaurantId)
+      allow get: if signedIn() && (uid == me() || isAdminOf(resource.data.restaurantId));
+      allow list: if signedIn() && isAdminOf(resource.data.restaurantId);
+      allow create: if signedIn() && uid == me() && validAdmin(request.resource.data) && (
+        // responsável: criado junto com o restaurante
+        (request.resource.data.role == 'owner'
+          && !exists(restaurantPath(request.resource.data.restaurantId))
+          && getAfter(restaurantPath(request.resource.data.restaurantId)).data.ownerUid == me())
+        ||
+        // equipe: aceitando um convite para o próprio e-mail (que é consumido no mesmo lote)
+        (request.resource.data.role == 'staff'
+          && emailVerified()
+          && request.resource.data.email == myEmail()
+          && exists(invitePath(myEmail()))
+          && get(invitePath(myEmail())).data.restaurantId == request.resource.data.restaurantId
+          && !existsAfter(invitePath(myEmail())))
+      );
+      allow update: if false;
+      // o responsável remove pessoas da equipe (nunca outro responsável)
+      allow delete: if signedIn() && resource.data.role == 'staff' && isOwnerOf(resource.data.restaurantId);
+    }
+
+    // ---------- convites (id = e-mail em minúsculas) ----------
+    match /invites/{email} {
+      allow get: if signedIn() && ((emailVerified() && myEmail() == email) || isAdminOf(resource.data.restaurantId));
+      allow list: if signedIn() && isAdminOf(resource.data.restaurantId);
+      allow create: if signedIn()
+        && email == email.lower()
+        && isOwnerOf(request.resource.data.restaurantId)
+        && request.resource.data.keys().hasOnly(['restaurantId', 'role', 'createdBy', 'createdAt'])
+        && request.resource.data.role == 'staff'
+        && request.resource.data.createdBy == me()
+        && request.resource.data.createdAt == request.time;
+      allow update: if false;
+      allow delete: if signedIn() && ((emailVerified() && myEmail() == email) || isAdminOf(resource.data.restaurantId));
+    }
+
+    // todo o resto: negado
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
