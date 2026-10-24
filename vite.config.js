@@ -20,7 +20,7 @@ function trailingSlash(base) {
     configureServer(server) {
       server.middlewares.use((req, res, next) => {
         const [path, query] = req.url.split('?');
-        if (path === base + 'admin') {
+        if (path === base + 'admin' || path === base + 'plataforma') {
           res.statusCode = 302;
           res.setHeader('Location', path + '/' + (query ? '?' + query : ''));
           return res.end();
@@ -45,6 +45,7 @@ export default defineConfig(({ mode }) => {
         input: {
           index: r('index.html'),
           admin: r('admin/index.html'),
+          plataforma: r('plataforma/index.html'),
           mesa: r('mesa.html'),
           teste: r('teste.html'),
           404: r('404.html'),

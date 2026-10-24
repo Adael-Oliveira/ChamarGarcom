@@ -1,0 +1,217 @@
+/* =====================================================================
+   Administração da plataforma (clientes, interessados, contatos)
+   ===================================================================== */
+.is-platform {
+  --brand: #14161b;
+  --brand-ink: #ffffff;
+  --brand-readable: #14161b;
+  --brand-soft: #eceef2;
+  --brand-softer: #f5f6f8;
+  --brand-text: var(--brand-readable);
+  --ring: 0 0 0 3px color-mix(in srgb, var(--brand) 28%, transparent);
+}
+:root[data-theme='dark'] .is-platform {
+  --brand: #f2f3f5;
+  --brand-ink: #14161b;
+  --brand-readable: #f2f3f5;
+  --brand-soft: #262a33;
+  --brand-softer: #1d2128;
+  --brand-text: var(--brand-readable);
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-theme='system'] .is-platform {
+    --brand: #f2f3f5;
+    --brand-ink: #14161b;
+    --brand-readable: #f2f3f5;
+    --brand-soft: #262a33;
+    --brand-softer: #1d2128;
+    --brand-text: var(--brand-readable);
+  }
+}
+.platform-badge {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  flex-shrink: 0;
+}
+.stat-ok .stat-value {
+  color: var(--ok);
+}
+
+.search-field {
+  position: relative;
+  flex: 1;
+  min-width: 220px;
+  max-width: 380px;
+}
+.search-field svg {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--ink-3);
+  pointer-events: none;
+}
+.search-field .input {
+  padding-left: 36px;
+}
+
+/* ---------- lista de clientes / interessados ---------- */
+.clients {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+.client {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  padding: 14px 16px;
+  box-shadow: var(--shadow);
+}
+.client.is-paused {
+  background: var(--surface-2);
+}
+.client.is-paused .client-main strong {
+  color: var(--ink-2);
+}
+.client-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.client-avatar {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 1.1rem;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+.client-main {
+  flex: 1;
+  min-width: 200px;
+}
+.client-main strong {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 1rem;
+}
+.client-main small {
+  display: block;
+  color: var(--ink-3);
+  overflow-wrap: anywhere;
+}
+.pill-active {
+  background: var(--ok-bg);
+  color: var(--ok-ink);
+  border-color: var(--ok-line);
+}
+.pill-waiting {
+  background: var(--wait-bg);
+  color: var(--wait-ink);
+  border-color: var(--wait-line);
+}
+.pill-paused {
+  background: var(--late-bg);
+  color: var(--late-ink);
+  border-color: transparent;
+}
+.client-detail {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+.client-detail h3 {
+  margin: 0 0 4px;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-3);
+}
+.client-notes {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  color: var(--ink-2);
+  font-size: 0.9rem;
+  white-space: pre-wrap;
+}
+.client-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+.client-id {
+  margin-left: auto;
+}
+.lead-status {
+  width: 170px;
+}
+.lead-status select {
+  padding-top: 7px;
+  padding-bottom: 7px;
+}
+.lead-new {
+  border-color: var(--wait-line);
+}
+.lead-archived {
+  opacity: 0.7;
+}
+
+/* ---------- contatos ---------- */
+.contacts-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+.contacts-preview {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  border-radius: var(--r);
+  background: var(--surface-2);
+  border: 1px dashed var(--line-strong);
+}
+.setting-inline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.setting-inline p {
+  margin: 0;
+  max-width: 60ch;
+}
+@media (max-width: 860px) {
+  .contacts-layout {
+    grid-template-columns: 1fr;
+  }
+  .client-id {
+    margin-left: 0;
+  }
+  .client-row .row-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+}

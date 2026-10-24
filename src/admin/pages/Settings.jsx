@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import api, { isDemo } from '../../lib/api';
+import { BASE } from '../../lib/env';
 import { useAdmin } from '../AdminApp';
-import { chime, useWatch } from '../hooks';
+import { chime } from '../hooks';
 import Switch from '../../shared/ui/Switch';
 import { Confirm } from '../../shared/ui/Modal';
 import { Icon } from '../../shared/ui/Icon';
@@ -24,8 +25,6 @@ export default function Settings() {
   const [cd, setCd] = useState(String(s.cooldownMinutes));
   const [reset, setReset] = useState(false);
   useEffect(() => setCd(String(s.cooldownMinutes)), [s.cooldownMinutes]);
-  const platform = useWatch((ok) => api.watchPlatform(ok), [], null);
-  const isPlatformOwner = platform.data?.ownerUid === user.uid;
 
   const n = Number(cd);
   const valid = Number.isInteger(n) && n >= 0 && n <= 60;
@@ -77,9 +76,11 @@ export default function Settings() {
           <Switch id="s-sound" size="lg" checked={soundOn} label={soundOn ? 'Ligado' : 'Desligado'} onChange={setSoundOn} />
         </Row>
 
-        {isPlatformOwner && !isDemo && (
-          <Row title="Novos restaurantes" text="Permite que qualquer pessoa que entrar com Google crie o próprio restaurante nesta plataforma. Deixe desligado se só você vai usar.">
-            <Switch id="s-signup" size="lg" checked={!!platform.data?.signupOpen} label={platform.data?.signupOpen ? 'Abertos' : 'Fechados'} onChange={(v) => run(() => api.setSignupOpen(v), v ? 'Cadastros abertos' : 'Cadastros fechados').catch(() => {})} />
+        {admin.platformOwner && (
+          <Row title="Plataforma" text="Clientes, interessados, contatos e cadastros de novos restaurantes ficam na administração da plataforma.">
+            <a className="btn" href={`${BASE}plataforma/`}>
+              <Icon name="store" size={16} /> Abrir a plataforma
+            </a>
           </Row>
         )}
 
@@ -88,7 +89,7 @@ export default function Settings() {
             <dt>Conta</dt>
             <dd>{user.email}</dd>
             <dt>Função</dt>
-            <dd>{isOwner ? 'Responsável' : 'Equipe'}</dd>
+            <dd>{admin.support ? 'Suporte da plataforma' : isOwner ? 'Responsável' : 'Equipe'}</dd>
             <dt>Restaurante</dt>
             <dd>
               <code>{admin.restaurantId}</code>

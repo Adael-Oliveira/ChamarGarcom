@@ -5,7 +5,7 @@ import { BASE } from '../lib/env';
 
 // GitHub Pages: /admin sem barra ou link quebrado → manda para o lugar certo
 const path = location.pathname.replace(/\/+$/, '');
-if (path.endsWith('/admin')) location.replace(path + '/' + location.search + location.hash);
+if (path.endsWith('/admin') || path.endsWith('/plataforma')) location.replace(path + '/' + location.search + location.hash);
 
 createRoot(document.getElementById('root')).render(
   <div className="fullscreen">

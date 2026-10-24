@@ -70,6 +70,77 @@
   min-width: 0;
 }
 
+.auth-card.is-wide {
+  max-width: 640px;
+}
+.pitch-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  justify-self: start;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: var(--brand-soft);
+  color: var(--brand-text);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+.pitch-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.pitch-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+.pitch-list svg {
+  color: var(--brand-text);
+}
+.pitch-form {
+  display: grid;
+  gap: 12px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+.pitch-form h2 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+/* ---------- modo suporte ---------- */
+.banner-support {
+  background: var(--bill-bg);
+  color: var(--bill-ink);
+  border: 1px solid var(--bill-line);
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+.banner-support a {
+  color: inherit;
+  font-weight: 700;
+}
+.banner-support > span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.side-user .avatar {
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+}
+.side-platform {
+  margin-top: 8px;
+  border-top: 1px dashed var(--line);
+  padding-top: 12px !important;
+}
+
 /* ---------- estrutura ---------- */
 .shell {
   display: grid;
@@ -1241,6 +1312,11 @@ table.data tr.is-off td {
   }
   .side-nav a {
     padding: 9px 10px;
+  }
+  .side-platform {
+    margin-top: 0;
+    border-top: 0;
+    padding-top: 9px !important;
   }
   .side-nav a:not(.is-active) .side-label {
     display: none;

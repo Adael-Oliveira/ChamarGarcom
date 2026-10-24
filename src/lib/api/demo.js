@@ -78,6 +78,11 @@ function seed() {
     tables: { [RID]: tables },
     tableState: { [RID]: tableState },
     calls: { [RID]: calls },
+    leads: [
+      { id: 'l1', name: 'Marina Costa', restaurant: 'Café da Praça', city: 'Osasco', phone: '11988887777', email: 'marina@exemplo.com', message: 'Tenho 12 mesas e queria testar.', status: 'new', createdAt: now - 2 * 3600000 },
+      { id: 'l2', name: 'Rafael Lima', restaurant: 'Pizzaria Forno Velho', city: 'Barueri', phone: '11977776666', email: null, message: null, status: 'contacted', createdAt: now - 26 * 3600000 },
+    ],
+    contacts: null,
   };
 }
 
@@ -85,7 +90,11 @@ function seed() {
 function load() {
   try {
     const raw = JSON.parse(LS.getItem(KEY));
-    if (raw && raw.restaurants) return raw;
+    if (raw && raw.restaurants) {
+      raw.leads ||= [];
+      if (!('contacts' in raw)) raw.contacts = null;
+      return raw;
+    }
   } catch {
     /* ignora */
   }
@@ -182,10 +191,16 @@ const api = {
     LS.removeItem(SESSION);
     authSubs.forEach((cb) => cb(null));
   },
-  async loadProfile(user) {
+  async loadProfile(user, { supportRid } = {}) {
     await delay(80);
+    const platformOwner = db.platform.ownerUid === user.uid;
     const a = db.admins[user.uid];
-    return a ? { status: 'ready', admin: { uid: user.uid, ...a } } : { status: 'denied' };
+    if (platformOwner && supportRid && supportRid !== a?.restaurantId && db.restaurants[supportRid]) {
+      return { status: 'ready', admin: { uid: user.uid, email: user.email, name: user.name, restaurantId: supportRid, role: 'owner', platformOwner, support: true } };
+    }
+    if (!a) return { status: platformOwner ? 'platform' : 'denied' };
+    if (!platformOwner && db.settings[a.restaurantId]?.suspended) return { status: 'suspended', restaurantName: db.brand[a.restaurantId]?.name };
+    return { status: 'ready', admin: { uid: user.uid, ...a, platformOwner } };
   },
   async createRestaurant() {
     return RID;
@@ -312,6 +327,74 @@ const api = {
   revokeInvite: async (email) => commit((d) => delete d.invites[normalizeEmail(email)]),
   removeMember: async (u) => commit((d) => delete d.admins[u]),
 
+  // ---------- administração da plataforma ----------
+  watchClients: (cb) =>
+    watch((d) =>
+      cb(
+        Object.entries(d.restaurants)
+          .map(([id, r]) => ({
+            id,
+            ...r,
+            suspended: !!r.suspended,
+            createdAt: D(r.createdAt),
+            members: Object.entries(d.admins)
+              .filter(([, a]) => a.restaurantId === id)
+              .map(([u, a]) => ({ uid: u, ...a, createdAt: D(a.createdAt) })),
+            invites: Object.entries(d.invites)
+              .filter(([, i]) => i.restaurantId === id)
+              .map(([email, i]) => ({ email, ...i, createdAt: D(i.createdAt) })),
+          }))
+          .sort((a, b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0)),
+      ),
+    ),
+  async createClient({ name, ownerEmail, notes = '' }, by) {
+    const email = normalizeEmail(ownerEmail);
+    return commit((d) => {
+      if (d.invites[email]) throw new Error('Esse e-mail já tem um convite pendente.');
+      if (Object.values(d.admins).some((a) => a.email === email)) throw new Error('Esse e-mail já tem acesso a um restaurante.');
+      const rid = 'r' + uid();
+      d.restaurants[rid] = { name, ownerUid: null, ownerEmail: email, createdAt: Date.now(), createdBy: by, suspended: false, notes };
+      d.settings[rid] = { ...DEFAULT_SETTINGS, suspended: false };
+      d.brand[rid] = { ...DEFAULT_BRAND, name };
+      d.tables[rid] = [];
+      d.tableState[rid] = {};
+      d.calls[rid] = [];
+      d.invites[email] = { restaurantId: rid, role: 'owner', createdBy: by, createdAt: Date.now() };
+      return rid;
+    });
+  },
+  updateClient: async (rid, { name, notes }) =>
+    commit((d) => {
+      if (name) {
+        d.restaurants[rid].name = name;
+        d.brand[rid].name = name;
+      }
+      if (notes != null) d.restaurants[rid].notes = notes;
+    }),
+  setSuspended: async (rid, suspended) =>
+    commit((d) => {
+      d.restaurants[rid].suspended = !!suspended;
+      d.settings[rid].suspended = !!suspended;
+    }),
+
+  async createLead(data) {
+    await delay(300);
+    commit((d) => d.leads.unshift({ id: uid(), ...data, status: 'new', createdAt: Date.now() }));
+  },
+  watchLeads: (cb) => watch((d) => cb(d.leads.map((l) => ({ ...l, createdAt: D(l.createdAt) })))),
+  setLeadStatus: async (id, status) =>
+    commit((d) => {
+      const l = d.leads.find((x) => x.id === id);
+      if (l) l.status = status;
+    }),
+  deleteLead: async (id) => commit((d) => (d.leads = d.leads.filter((x) => x.id !== id))),
+
+  watchContacts: (cb) => watch((d) => cb(d.contacts)),
+  saveContacts: async (data) =>
+    commit((d) => {
+      d.contacts = { ...data, whatsapp: (data.whatsapp || '').replace(/\D/g, ''), instagram: (data.instagram || '').replace(/^@/, '') };
+    }),
+
   watchTableLink: (token, cb) => watch((d) => cb(null, d.tableLinks[token] || null)),
   watchTableState: (rid, tableId, cb) =>
     watch((d) => {
@@ -331,7 +414,7 @@ const api = {
       if (!link || !link.active) return { error: 'rejected' };
       const rid = link.restaurantId;
       const s = d.settings[rid];
-      if (!s.callsEnabled || (reason === 'bill' && !s.billEnabled)) return { error: 'rejected' };
+      if (!s.callsEnabled || s.suspended || (reason === 'bill' && !s.billEnabled)) return { error: 'rejected' };
       const st = d.tableState[rid][link.tableId];
       const now = Date.now();
       if (st && now < st.lastCallAt + s.cooldownMinutes * MIN) return { error: 'rejected' };

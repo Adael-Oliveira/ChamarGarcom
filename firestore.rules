@@ -3,14 +3,15 @@ rules_version = '2';
 // =====================================================================
 //  Chamar Garçom — regras do Cloud Firestore
 //
-//  Equipe  = usuário logado com Google que tem admins/{uid} apontando para
-//            o restaurante (role 'owner' = responsável, 'staff' = equipe).
-//  Cliente = qualquer pessoa SEM login que conhece o token da mesa (QR Code).
+//  Dono da plataforma = quem está em platform/config.ownerUid. Cria e
+//                       suspende restaurantes, vê os interessados e tem
+//                       acesso de suporte a todos os restaurantes.
+//  Equipe             = conta Google com admins/{uid} apontando para o
+//                       restaurante ('owner' = Responsável, 'staff' = Equipe).
+//  Cliente            = qualquer pessoa SEM login que conhece o token da mesa.
 //
-//  O cliente pode: ler a mesa pelo token (sem listar), ler marca e
-//  configurações públicas, criar UMA chamada válida respeitando o intervalo
-//  (conferido aqui, no servidor) e acompanhar a própria chamada pelo ID.
-//  Nada mais.
+//  Qualquer outra conta Google não lê nem altera nada (só pode deixar o
+//  contato pelo formulário "Quero minha ferramenta", como qualquer visitante).
 // =====================================================================
 
 service cloud.firestore {
@@ -23,21 +24,35 @@ service cloud.firestore {
     function emailVerified() { return request.auth.token.email_verified == true; }
 
     function adminDoc() { return /databases/$(database)/documents/admins/$(me()); }
-    // getAfter: enxerga o estado depois da escrita atual (permite criar o
-    // restaurante e o primeiro administrador no mesmo lote)
-    function isAdminOf(rid) {
-      return signedIn() && existsAfter(adminDoc()) && getAfter(adminDoc()).data.restaurantId == rid;
-    }
-    function isOwnerOf(rid) {
-      return isAdminOf(rid) && getAfter(adminDoc()).data.role == 'owner';
-    }
-    function restaurantPath(rid) { return /databases/$(database)/documents/restaurants/$(rid); }
     function platformPath() { return /databases/$(database)/documents/platform/config; }
+    function restaurantPath(rid) { return /databases/$(database)/documents/restaurants/$(rid); }
+    function settingsPath(rid) { return /databases/$(database)/documents/restaurants/$(rid)/settings/general; }
     function invitePath(email) { return /databases/$(database)/documents/invites/$(email); }
-    function settingsOf(rid) { return get(/databases/$(database)/documents/restaurants/$(rid)/settings/general).data; }
     function callPath(rid, id) { return /databases/$(database)/documents/restaurants/$(rid)/calls/$(id); }
     function statePath(rid, id) { return /databases/$(database)/documents/restaurants/$(rid)/tableState/$(id); }
-    function isTs(v) { return v is timestamp; }
+    function settingsOf(rid) { return get(settingsPath(rid)).data; }
+
+    // getAfter: enxerga o estado depois da escrita atual (permite criar
+    // restaurante + primeiro administrador no mesmo lote)
+    function isPlatformOwner() {
+      return signedIn() && existsAfter(platformPath()) && getAfter(platformPath()).data.ownerUid == me();
+    }
+    function memberOf(rid) {
+      return signedIn() && existsAfter(adminDoc()) && getAfter(adminDoc()).data.restaurantId == rid;
+    }
+    function notSuspended(rid) {
+      return !existsAfter(settingsPath(rid)) || getAfter(settingsPath(rid)).data.get('suspended', false) != true;
+    }
+    // equipe ativa do restaurante (ou o dono da plataforma, para suporte)
+    function isAdminOf(rid) {
+      return isPlatformOwner() || (memberOf(rid) && notSuspended(rid));
+    }
+    // Responsável do restaurante (ou o dono da plataforma)
+    function isOwnerOf(rid) {
+      return isPlatformOwner() || (memberOf(rid) && getAfter(adminDoc()).data.role == 'owner' && notSuspended(rid));
+    }
+
+    function shortText(v, max) { return v == null || (v is string && v.size() <= max); }
 
     // ---------- plataforma ----------
     // Criado uma única vez, pela primeira pessoa que entra (vira dona da plataforma).
@@ -54,36 +69,84 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Contatos do dono da plataforma (aparecem no site e para quem não tem acesso)
+    match /platform/public {
+      allow get: if true;
+      allow create, update: if isPlatformOwner()
+        && request.resource.data.keys().hasOnly(['name', 'whatsapp', 'email', 'instagram', 'message', 'updatedAt'])
+        && shortText(request.resource.data.get('name', null), 80)
+        && shortText(request.resource.data.get('whatsapp', null), 20)
+        && shortText(request.resource.data.get('email', null), 120)
+        && shortText(request.resource.data.get('instagram', null), 60)
+        && shortText(request.resource.data.get('message', null), 400);
+      allow delete: if false;
+    }
+
+    // ---------- interessados ("Quero minha ferramenta") ----------
+    match /leads/{leadId} {
+      allow create: if request.resource.data.keys().hasOnly(['name', 'restaurant', 'city', 'phone', 'email', 'message', 'status', 'createdAt'])
+        && request.resource.data.keys().hasAll(['name', 'restaurant', 'phone', 'status', 'createdAt'])
+        && request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 80
+        && request.resource.data.restaurant is string && request.resource.data.restaurant.size() > 0 && request.resource.data.restaurant.size() <= 80
+        && request.resource.data.phone is string && request.resource.data.phone.size() >= 8 && request.resource.data.phone.size() <= 20
+        && shortText(request.resource.data.get('city', null), 80)
+        && shortText(request.resource.data.get('email', null), 120)
+        && shortText(request.resource.data.get('message', null), 600)
+        && request.resource.data.status == 'new'
+        && request.resource.data.createdAt == request.time;
+      allow read, delete: if isPlatformOwner();
+      allow update: if isPlatformOwner()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+        && request.resource.data.status in ['new', 'contacted', 'client', 'archived'];
+    }
+
     // ---------- restaurantes ----------
     match /restaurants/{rid} {
       allow get: if isAdminOf(rid);
-      allow list: if false;
-      // Cadastro: só quem ainda não é admin de nada; precisa ser a primeira
-      // configuração da plataforma OU os cadastros estarem abertos.
-      allow create: if signedIn()
-        && !exists(adminDoc())
-        && request.resource.data.keys().hasOnly(['name', 'ownerUid', 'createdAt'])
-        && request.resource.data.ownerUid == me()
-        && request.resource.data.name is string
-        && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 80
-        && request.resource.data.createdAt == request.time
-        && existsAfter(platformPath())
-        && (
-          getAfter(platformPath()).data.ownerUid == me()
-          || get(platformPath()).data.signupOpen == true
-        );
-      allow update: if isOwnerOf(rid)
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name'])
-        && request.resource.data.name is string
-        && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 80;
+      allow list: if isPlatformOwner();
+      allow create: if
+        // 1) dono da plataforma cria o restaurante de um cliente
+        (isPlatformOwner()
+          && request.resource.data.keys().hasOnly(['name', 'ownerUid', 'ownerEmail', 'createdAt', 'createdBy', 'suspended', 'notes'])
+          && request.resource.data.name is string
+          && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 80
+          && request.resource.data.createdBy == me()
+          && request.resource.data.createdAt == request.time
+          && request.resource.data.suspended == false
+          && shortText(request.resource.data.get('ownerEmail', null), 120)
+          && shortText(request.resource.data.get('notes', null), 400))
+        ||
+        // 2) cadastro pela própria tela: primeira configuração da plataforma,
+        //    ou cadastros abertos; só para quem ainda não é admin de nada
+        (signedIn()
+          && !exists(adminDoc())
+          && request.resource.data.keys().hasOnly(['name', 'ownerUid', 'createdAt'])
+          && request.resource.data.ownerUid == me()
+          && request.resource.data.name is string
+          && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 80
+          && request.resource.data.createdAt == request.time
+          && existsAfter(platformPath())
+          && (getAfter(platformPath()).data.ownerUid == me() || get(platformPath()).data.signupOpen == true));
+      allow update: if
+        (isPlatformOwner()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'suspended', 'notes', 'ownerEmail'])
+          && request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 80
+          && request.resource.data.get('suspended', false) is bool
+          && shortText(request.resource.data.get('notes', null), 400))
+        ||
+        (isOwnerOf(rid)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name'])
+          && request.resource.data.name is string
+          && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 80);
       allow delete: if false;
 
       // ----- configurações (públicas: o cliente precisa ler) -----
       function validGeneral(d) {
-        return d.keys().hasOnly(['callsEnabled', 'billEnabled', 'cooldownMinutes', 'menuUrl', 'menuFileName', 'menuPath', 'menuUpdatedAt', 'updatedAt'])
+        return d.keys().hasOnly(['callsEnabled', 'billEnabled', 'cooldownMinutes', 'menuUrl', 'menuFileName', 'menuPath', 'menuUpdatedAt', 'updatedAt', 'suspended'])
           && d.callsEnabled is bool
           && d.billEnabled is bool
           && d.cooldownMinutes is int && d.cooldownMinutes >= 0 && d.cooldownMinutes <= 60
+          && d.get('suspended', false) is bool
           && (d.menuUrl == null || (d.menuUrl is string && d.menuUrl.size() < 2048 && d.menuUrl.matches('^https://.*')))
           && (d.menuFileName == null || (d.menuFileName is string && d.menuFileName.size() < 200))
           && (d.menuPath == null || (d.menuPath is string && d.menuPath.matches('^menus/' + rid + '/.*')));
@@ -100,7 +163,12 @@ service cloud.firestore {
       match /settings/{docId} {
         allow get: if docId in ['general', 'brand'];
         allow list: if isAdminOf(rid);
-        allow create, update: if (docId == 'general' && isAdminOf(rid) && validGeneral(request.resource.data))
+        // só o dono da plataforma suspende/reativa um restaurante
+        allow create: if (docId == 'general' && isAdminOf(rid) && validGeneral(request.resource.data)
+              && (request.resource.data.get('suspended', false) == false || isPlatformOwner()))
+          || (docId == 'brand' && isOwnerOf(rid) && validBrand(request.resource.data));
+        allow update: if (docId == 'general' && isAdminOf(rid) && validGeneral(request.resource.data)
+              && (isPlatformOwner() || !request.resource.data.diff(resource.data).affectedKeys().hasAny(['suspended'])))
           || (docId == 'brand' && isOwnerOf(rid) && validBrand(request.resource.data));
         allow delete: if false;
       }
@@ -155,6 +223,7 @@ service cloud.firestore {
           && link.number == d.tableNumber
           && link.active == true
           && s.callsEnabled == true
+          && s.get('suspended', false) != true
           && (d.reason == 'waiter' || (d.reason == 'bill' && s.billEnabled == true))
           && d.status == 'PENDING'
           && d.calledAt == request.time
@@ -209,11 +278,12 @@ service cloud.firestore {
         && d.createdAt == request.time;
     }
     match /admins/{uid} {
-      // cada um lê o próprio; o restaurante lê a sua equipe (consulta por restaurantId)
+      // cada um lê o próprio; o restaurante lê a sua equipe (consulta por restaurantId);
+      // o dono da plataforma lê todos
       allow get: if signedIn() && (uid == me() || isAdminOf(resource.data.restaurantId));
-      allow list: if signedIn() && isAdminOf(resource.data.restaurantId);
+      allow list: if isPlatformOwner() || isAdminOf(resource.data.restaurantId);
       allow create: if signedIn() && uid == me() && validAdmin(request.resource.data) && (
-        // responsável: criado junto com o restaurante
+        // responsável: criado junto com o restaurante (cadastro pela tela)
         (request.resource.data.role == 'owner'
           && !exists(restaurantPath(request.resource.data.restaurantId))
           && getAfter(restaurantPath(request.resource.data.restaurantId)).data.ownerUid == me())
@@ -228,14 +298,15 @@ service cloud.firestore {
           && !existsAfter(invitePath(myEmail())))
       );
       allow update: if false;
-      // o responsável remove pessoas da equipe (nunca outro responsável)
-      allow delete: if signedIn() && resource.data.role == 'staff' && isOwnerOf(resource.data.restaurantId);
+      // o responsável remove a equipe; o dono da plataforma remove qualquer um (menos ele mesmo)
+      allow delete: if (signedIn() && resource.data.role == 'staff' && isOwnerOf(resource.data.restaurantId))
+        || (isPlatformOwner() && uid != me());
     }
 
     // ---------- convites (id = e-mail em minúsculas) ----------
     match /invites/{email} {
       allow get: if signedIn() && ((emailVerified() && myEmail() == email) || isAdminOf(resource.data.restaurantId));
-      allow list: if signedIn() && isAdminOf(resource.data.restaurantId);
+      allow list: if isPlatformOwner() || isAdminOf(resource.data.restaurantId);
       allow create: if signedIn()
         && email == email.lower()
         && isOwnerOf(request.resource.data.restaurantId)

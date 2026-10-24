@@ -117,9 +117,19 @@ Para ativar: **Build → Storage → Vamos começar**, depois **Storage → Regr
 2. Como é a primeira conta, aparece **“Vamos configurar a plataforma”**. Digite o nome do restaurante e clique em **Criar restaurante**. Você vira o responsável pelo restaurante e dono da plataforma.
 3. Pronto: não é preciso criar nada à mão no console do Firebase.
 
-Depois disso, quem entrar sem convite vê “Esta conta ainda não tem acesso”.
+Depois disso, quem entrar com uma conta Google sem acesso vê a propaganda **“Quer o Chamar Garçom no seu restaurante?”**, com os seus contatos e o formulário **Quero minha ferramenta**. Nada do restaurante fica visível para essa pessoa.
 
-**Mais restaurantes:** em **Configurações → Novos restaurantes**, o dono da plataforma pode abrir os cadastros. Aí qualquer pessoa que entrar com Google cria o próprio restaurante, totalmente separado dos outros. Deixe fechado se só você vai usar.
+## 4.1 Administração da plataforma (só o dono)
+
+Endereço: `https://adael-oliveira.github.io/ChamarGarcom/plataforma/` (ou **Plataforma** no menu da central). Qualquer outra conta vê “Área restrita”.
+
+| Tela | Para que serve |
+|---|---|
+| **Clientes** | Todos os restaurantes. **Liberar novo cliente**: nome + e-mail Google do dono → cria o restaurante e o convite de **Responsável**, e copia a mensagem para mandar no WhatsApp. **Abrir central** entra no restaurante em **modo suporte** (faixa azul). **Detalhes**: equipe, convites, editar, convidar responsável, **Pausar acesso** / **Reativar**. |
+| **Interessados** | Pedidos do formulário “Quero minha ferramenta” (site e tela de quem entra sem acesso), em tempo real. Situação (Novo, Em contato, Virou cliente, Arquivado), botão de WhatsApp e **Liberar como cliente** já preenchido. |
+| **Contatos e cadastros** | WhatsApp, e-mail e Instagram mostrados no site e para quem entra sem acesso. E o cadastro aberto de novos restaurantes (deixe **Fechado**: só entra quem você liberar). |
+
+Restaurante **pausado**: a equipe vê “Acesso pausado” com os seus contatos e as mesas não recebem chamadas. Nada é apagado; **Reativar** volta tudo.
 
 ## 5. Uso no dia a dia
 
@@ -153,12 +163,12 @@ npm run emulators                         # terminal 1
 VITE_USE_EMULATORS=true npm run dev       # terminal 2
 ```
 
-**Testes das regras de segurança:** `npm run test:rules` (39 verificações: cadastro, convites, marca, cliente, intervalo no servidor, equipe).
+**Testes das regras de segurança:** `npm run test:rules` (60 verificações: cadastro, convites, marca, cliente, intervalo no servidor, equipe, administração da plataforma, pausa, interessados).
 
 ## 7. Como funciona por dentro
 
 ```
-index.html / admin/index.html / mesa.html / teste.html / 404.html   ← páginas
+index.html / admin/ / plataforma/ / mesa.html / teste.html / 404.html   ← páginas
 src/
 ├── config/firebase.config.js   ← cole aqui a configuração do Firebase
 ├── lib/
@@ -169,19 +179,22 @@ src/
 ├── shared/                     ← modelo de dados, formatação, componentes
 ├── client/TableView.jsx        ← tela da mesa (usada no site e na pré-visualização)
 ├── admin/                      ← central: login, cadastro, convite e as 7 telas
+├── platform/                   ← administração da plataforma: clientes, interessados, contatos
 ├── landing/                    ← página inicial e 404
 └── test/                       ← simulador de celulares
-firestore.rules · storage.rules · tests/rules.test.js
+firestore.rules · storage.rules · tests/rules.test.js · tests/platform.test.js
 ```
 
 **Dados no Firestore**
 
 ```
 platform/config                         dono da plataforma, cadastros abertos?
+platform/public                         seus contatos (público)
+leads/{id}                              interessados (qualquer um cria; só você lê)
 admins/{uid}                            restaurantId, role (owner | staff)
 invites/{email}                         convites pendentes
 tableLinks/{token}                      token do QR → mesa  (público: só leitura por token)
-restaurants/{rid}                       nome, dono
+restaurants/{rid}                       nome, dono, pausado?, observações
   settings/general                      chamadas, conta, intervalo, cardápio  (público)
   settings/brand                        nome, frase, logo, cores, estilo      (público)
   tables/{id}                           mesas                                 (só equipe)
@@ -189,7 +202,7 @@ restaurants/{rid}                       nome, dono
   calls/{id}                            chamadas: motivo, horários, status
 ```
 
-**Segurança (resumo):** o cliente não faz login e só consegue ler a mesa pelo token, ler a marca, criar uma chamada válida e acompanhar a própria chamada. Não lista mesas nem chamadas. O **intervalo entre chamadas é conferido no servidor** (a chamada só é aceita junto com a atualização de `tableState`, e a regra recusa antes do tempo), então burlar o cronômetro do navegador não adianta. A equipe só enxerga o próprio restaurante; marca e equipe só o responsável altera; ninguém se promove a administrador.
+**Segurança (resumo):** o cliente não faz login e só consegue ler a mesa pelo token, ler a marca, criar uma chamada válida e acompanhar a própria chamada. Não lista mesas nem chamadas. O **intervalo entre chamadas é conferido no servidor** (a chamada só é aceita junto com a atualização de `tableState`, e a regra recusa antes do tempo), então burlar o cronômetro do navegador não adianta. A equipe só enxerga o próprio restaurante; marca e equipe só o responsável altera; ninguém se promove a administrador. O dono da plataforma enxerga todos (suporte), e só ele pausa/reativa um restaurante.
 
 **Preparado para:** ESP32 com matriz LED (ouvir `calls` com `status == "PENDING"` usando uma conta de serviço/dispositivo), servidor de licenças (campo no `restaurants/{rid}` conferido nas regras), cardápio digital e pedidos (novas coleções sob `restaurants/{rid}`).
 

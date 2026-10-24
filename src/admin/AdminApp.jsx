@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo } from 'react';
 import api from '../lib/api';
+import { BASE } from '../lib/env';
 import { applyBrand, sanitizeBrand } from '../lib/theme/brand';
 import { DEFAULT_SETTINGS, CALL_STATUS } from '../shared/model';
 import BrandMark from '../shared/ui/BrandMark';
@@ -51,7 +52,7 @@ export default function AdminApp({ user, admin }) {
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
   }, [theme]);
-  useNewCallAlert(calls.data, calls.loading, soundOn, brand.name);
+  useNewCallAlert(calls.data, calls.loading, soundOn && !admin.support, brand.name);
 
   /** Executa uma ação; mostra o erro de forma amigável. */
   const run = useCallback(
@@ -113,6 +114,12 @@ export default function AdminApp({ user, admin }) {
                 {n.id === 'painel' && pending > 0 && <em className="side-badge">{pending}</em>}
               </a>
             ))}
+            {admin.platformOwner && (
+              <a href={`${BASE}plataforma/`} className="side-platform">
+                <Icon name="store" />
+                <span className="side-label">Plataforma</span>
+              </a>
+            )}
           </nav>
           <div className="side-foot">
             <div className="theme-toggle" role="radiogroup" aria-label="Aparência">
@@ -127,7 +134,7 @@ export default function AdminApp({ user, admin }) {
               {user.photo ? <img src={user.photo} alt="" referrerPolicy="no-referrer" /> : <span className="avatar">{(user.name || user.email || '?')[0]}</span>}
               <span>
                 <strong>{user.name || 'Administrador'}</strong>
-                <small>{isOwner ? 'Responsável' : 'Equipe'}</small>
+                <small>{admin.support ? 'Suporte da plataforma' : isOwner ? 'Responsável' : 'Equipe'}</small>
               </span>
               <button className="btn btn-icon btn-ghost" onClick={() => api.signOut()} title="Sair" aria-label="Sair">
                 <Icon name="logout" size={18} />
@@ -138,6 +145,17 @@ export default function AdminApp({ user, admin }) {
 
         <main className="main" id="conteudo">
           <DemoBanner />
+          {admin.support && (
+            <div className="banner banner-support" role="note">
+              <span>
+                <Icon name="lifebuoy" size={18} />
+                <span>
+                  Modo suporte: você está na central do <strong>{brand.name}</strong>. Tudo que mudar aqui vale para o restaurante.
+                </span>
+              </span>
+              <a href={`${BASE}plataforma/`}>Voltar para a plataforma</a>
+            </div>
+          )}
           {err && (
             <div className="banner banner-error" role="alert">
               <Icon name="alert" size={18} /> {err.message || 'Erro de conexão.'}

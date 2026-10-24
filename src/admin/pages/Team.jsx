@@ -54,7 +54,7 @@ export default function Team() {
     <>
       <PageHeader
         title="Equipe"
-        text="Só entra na central quem estiver aqui. Qualquer outra conta Google que tentar entrar vê “Esta conta ainda não tem acesso”."
+        text="Só entra na central quem estiver aqui. Qualquer outra conta Google que tentar entrar não vê nada do restaurante."
       />
 
       <Panel title="Convidar alguém">

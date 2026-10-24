@@ -4,6 +4,8 @@
 //  admins/{uid}                         → quem acessa a central {restaurantId, role}
 //  invites/{email}                      → convites pendentes para a equipe
 //  platform/config                      → dono da plataforma e se novos cadastros estão abertos
+//  platform/public                      → contatos do dono da plataforma (público)
+//  leads/{id}                           → interessados ("Quero minha ferramenta")
 //  tableLinks/{token}                   → token do QR → mesa (público, só "get")
 //  restaurants/{rid}                    → restaurante {name, ownerUid}
 //  restaurants/{rid}/settings/general   → chamadas on/off, intervalo, cardápio (público)
@@ -24,6 +26,7 @@ import {
   signOut as fbSignOut,
 } from 'firebase/auth';
 import {
+  addDoc,
   initializeFirestore,
   persistentLocalCache,
   persistentMultipleTabManager,
@@ -38,6 +41,7 @@ import {
   orderBy,
   query,
   serverTimestamp,
+  setDoc,
   Timestamp,
   updateDoc,
   where,
@@ -79,6 +83,9 @@ async function storage() {
 // ---------------------------------------------------------------- helpers
 const P = {
   platform: () => doc(db, 'platform', 'config'),
+  contacts: () => doc(db, 'platform', 'public'),
+  leads: () => collection(db, 'leads'),
+  lead: (id) => doc(db, 'leads', id),
   admin: (uid) => doc(db, 'admins', uid),
   admins: () => collection(db, 'admins'),
   invite: (email) => doc(db, 'invites', email),
@@ -154,10 +161,33 @@ const api = {
   },
   signOut: () => fbSignOut(auth),
 
-  /** Descobre o que mostrar para quem acabou de entrar. */
-  async loadProfile(user) {
+  /**
+   * Descobre o que mostrar para quem acabou de entrar.
+   * O dono da plataforma pode abrir qualquer restaurante para suporte (supportRid).
+   */
+  async loadProfile(user, { supportRid } = {}) {
+    const platform = await getDoc(P.platform()).catch((e) => Promise.reject(friendly(e)));
+    const platformOwner = platform.exists() && platform.data().ownerUid === user.uid;
     const adminSnap = await getDoc(P.admin(user.uid)).catch((e) => Promise.reject(friendly(e)));
-    if (adminSnap.exists()) return { status: 'ready', admin: { uid: user.uid, ...adminSnap.data() } };
+
+    if (platformOwner && supportRid && supportRid !== adminSnap.data()?.restaurantId) {
+      const r = await getDoc(P.restaurant(supportRid)).catch(() => null);
+      if (r?.exists()) {
+        return { status: 'ready', admin: { uid: user.uid, email: user.email, name: user.name, restaurantId: supportRid, role: 'owner', platformOwner, support: true } };
+      }
+    }
+    if (adminSnap.exists()) {
+      const admin = { uid: user.uid, ...adminSnap.data(), platformOwner };
+      if (!platformOwner) {
+        const s = await getDoc(P.settings(admin.restaurantId)).catch(() => null);
+        if (s?.data()?.suspended) {
+          const b = await getDoc(P.brand(admin.restaurantId)).catch(() => null);
+          return { status: 'suspended', restaurantName: b?.data()?.name || 'restaurante' };
+        }
+      }
+      return { status: 'ready', admin };
+    }
+    if (platformOwner) return { status: 'platform' };
 
     if (user.email) {
       const inv = await getDoc(P.invite(user.email)).catch(() => null);
@@ -167,7 +197,6 @@ const api = {
         return { status: 'invite', invite: { email: user.email, ...inv.data(), restaurantName: brand?.data()?.name || 'restaurante' } };
       }
     }
-    const platform = await getDoc(P.platform()).catch((e) => Promise.reject(friendly(e)));
     if (!platform.exists()) return { status: 'setup', first: true };
     if (platform.data().signupOpen) return { status: 'setup', first: false };
     return { status: 'denied' };
@@ -353,6 +382,129 @@ const api = {
   },
   revokeInvite: (email) => wrap(deleteDoc(P.invite(normalizeEmail(email)))),
   removeMember: (uid) => wrap(deleteDoc(P.admin(uid))),
+
+  // ---------- administração da plataforma (só o dono da plataforma) ----------
+  /** Restaurantes clientes, com a equipe e os convites de cada um. */
+  watchClients(cb, onError) {
+    let restaurants = null;
+    let admins = [];
+    let invites = [];
+    const emit = () => {
+      if (!restaurants) return;
+      cb(
+        restaurants
+          .map((r) => ({
+            ...r,
+            members: admins.filter((a) => a.restaurantId === r.id),
+            invites: invites.filter((i) => i.restaurantId === r.id),
+          }))
+          .sort((a, b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0)),
+      );
+    };
+    const fail = (e) => onError?.(friendly(e));
+    const u1 = onSnapshot(
+      P.restaurants(),
+      (s) => {
+        restaurants = s.docs.map((d) => ({ id: d.id, ...d.data(), suspended: !!d.data().suspended, createdAt: toDate(d.data().createdAt) }));
+        emit();
+      },
+      fail,
+    );
+    const u2 = onSnapshot(
+      P.admins(),
+      (s) => {
+        admins = s.docs.map((d) => ({ uid: d.id, ...d.data(), createdAt: toDate(d.data().createdAt) }));
+        emit();
+      },
+      fail,
+    );
+    const u3 = onSnapshot(
+      P.invites(),
+      (s) => {
+        invites = s.docs.map((d) => ({ email: d.id, ...d.data(), createdAt: toDate(d.data().createdAt) }));
+        emit();
+      },
+      fail,
+    );
+    return () => {
+      u1();
+      u2();
+      u3();
+    };
+  },
+  /** Cria o restaurante de um cliente e já deixa o convite de Responsável para o e-mail dele. */
+  async createClient({ name, ownerEmail, notes = '' }, by) {
+    const email = normalizeEmail(ownerEmail);
+    const inv = await getDoc(P.invite(email)).catch(() => null);
+    if (inv?.exists()) throw new Error('Esse e-mail já tem um convite pendente.');
+    const taken = await getDocs(query(P.admins(), where('email', '==', email))).catch(() => null);
+    if (taken && !taken.empty) throw new Error('Esse e-mail já tem acesso a um restaurante.');
+    const rid = doc(P.restaurants()).id;
+    const b = writeBatch(db);
+    b.set(P.restaurant(rid), { name, ownerUid: null, ownerEmail: email, createdAt: serverTimestamp(), createdBy: by, suspended: false, notes: notes || '' });
+    b.set(P.settings(rid), { ...DEFAULT_SETTINGS, suspended: false, updatedAt: serverTimestamp() });
+    b.set(P.brand(rid), { ...DEFAULT_BRAND, name, updatedAt: serverTimestamp() });
+    b.set(P.invite(email), { restaurantId: rid, role: 'owner', createdBy: by, createdAt: serverTimestamp() });
+    await wrap(b.commit());
+    return rid;
+  },
+  async updateClient(rid, { name, notes }) {
+    const b = writeBatch(db);
+    const patch = {};
+    if (name) patch.name = name;
+    if (notes != null) patch.notes = notes;
+    b.update(P.restaurant(rid), patch);
+    if (name) b.update(P.brand(rid), { name, updatedAt: serverTimestamp() });
+    await wrap(b.commit());
+  },
+  async setSuspended(rid, suspended) {
+    const b = writeBatch(db);
+    b.update(P.restaurant(rid), { suspended: !!suspended });
+    b.update(P.settings(rid), { suspended: !!suspended, updatedAt: serverTimestamp() });
+    await wrap(b.commit());
+  },
+
+  // ---------- interessados ----------
+  async createLead(data) {
+    const clean = (v, max) => (v ? String(v).trim().slice(0, max) : null);
+    await wrap(
+      addDoc(P.leads(), {
+        name: clean(data.name, 80),
+        restaurant: clean(data.restaurant, 80),
+        city: clean(data.city, 80),
+        phone: clean(data.phone, 20),
+        email: clean(data.email, 120),
+        message: clean(data.message, 600),
+        status: 'new',
+        createdAt: serverTimestamp(),
+      }),
+    );
+  },
+  watchLeads(cb, onError) {
+    return onSnapshot(
+      query(P.leads(), orderBy('createdAt', 'desc'), limit(500)),
+      (s) => cb(s.docs.map((d) => ({ id: d.id, ...d.data({ serverTimestamps: 'estimate' }), createdAt: toDate(d.data({ serverTimestamps: 'estimate' }).createdAt) }))),
+      (e) => onError?.(friendly(e)),
+    );
+  },
+  setLeadStatus: (id, status) => wrap(updateDoc(P.lead(id), { status })),
+  deleteLead: (id) => wrap(deleteDoc(P.lead(id))),
+
+  // ---------- contatos públicos do dono da plataforma ----------
+  watchContacts(cb) {
+    return onSnapshot(P.contacts(), (s) => cb(s.exists() ? s.data() : null), () => cb(null));
+  },
+  saveContacts: (data) =>
+    wrap(
+      setDoc(P.contacts(), {
+        name: data.name || '',
+        whatsapp: (data.whatsapp || '').replace(/\D/g, '').slice(0, 20),
+        email: data.email || '',
+        instagram: (data.instagram || '').replace(/^@/, ''),
+        message: data.message || '',
+        updatedAt: serverTimestamp(),
+      }),
+    ),
 
   // ---------- página da mesa (cliente, sem login) ----------
   watchTableLink(token, cb) {

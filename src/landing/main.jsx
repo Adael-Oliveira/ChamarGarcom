@@ -9,6 +9,7 @@ import { BASE } from '../lib/env';
 import PlatformMark from '../shared/ui/PlatformMark';
 import { Icon } from '../shared/ui/Icon';
 import TableView from '../client/TableView';
+import { ContactButtons, LeadForm, useContacts } from '../shared/ui/Contact';
 
 // Link antigo no formato /?id=TOKEN → página da mesa
 const legacy = new URLSearchParams(location.search).get('id');
@@ -18,15 +19,21 @@ const SAMPLE = { name: 'Cantina da Praça', tagline: 'Massas frescas todos os di
 const SAMPLE2 = { name: 'Bistrô do Porto', tagline: 'Cozinha de mar, mesa de casa', primary: '#0B5B73', accent: '#5EEAD4', style: 'classico', logo: null };
 
 function Landing() {
+  const contacts = useContacts();
   return (
     <div className="lp">
       <header className="lp-nav">
         <a className="lp-logo" href={BASE}>
           <PlatformMark size={30} /> Chamar Garçom
         </a>
-        <a className="btn btn-dark" href={`${BASE}admin/`}>
-          Entrar na central
-        </a>
+        <nav className="lp-nav-actions" aria-label="Acesso">
+          <a className="btn btn-ghost" href="#quero">
+            Quero minha ferramenta
+          </a>
+          <a className="btn btn-dark" href={`${BASE}admin/`}>
+            Login do cliente
+          </a>
+        </nav>
       </header>
 
       <section className="lp-hero">
@@ -37,8 +44,8 @@ function Landing() {
             caixa com som, e o cliente vê quando alguém está a caminho.
           </p>
           <div className="lp-ctas">
-            <a className="btn btn-dark btn-lg" href={`${BASE}admin/`}>
-              {isDemo ? 'Abrir a demonstração' : 'Entrar na central'} <Icon name="arrowRight" size={18} />
+            <a className="btn btn-dark btn-lg" href="#quero">
+              Quero minha ferramenta <Icon name="arrowRight" size={18} />
             </a>
             <a className="btn btn-lg" href={`${BASE}teste.html`}>
               <Icon name="phone" size={18} /> Testar como cliente
@@ -85,9 +92,35 @@ function Landing() {
         </ol>
       </section>
 
+      <section className="lp-lead" id="quero" aria-labelledby="quero-t">
+        <div className="lp-lead-copy">
+          <h2 id="quero-t">Quero minha ferramenta</h2>
+          <p>Deixe seu contato e liberamos a central do seu restaurante, já com o seu logo e as suas cores. Você só precisa de uma conta Google.</p>
+          <ul className="lp-lead-points">
+            <li>
+              <Icon name="check" size={18} /> Configuração junto com você
+            </li>
+            <li>
+              <Icon name="check" size={18} /> QR Codes prontos para imprimir
+            </li>
+            <li>
+              <Icon name="check" size={18} /> Sua equipe entra com o próprio Google
+            </li>
+          </ul>
+          <ContactButtons contacts={contacts} />
+        </div>
+        <div className="lp-lead-card">
+          <LeadForm />
+        </div>
+      </section>
+
       <footer className="lp-foot">
         <span>Chamar Garçom</span>
-        <a href={`${BASE}admin/`}>Central do restaurante</a>
+        <span className="lp-foot-links">
+          <a href="#quero">Quero minha ferramenta</a>
+          <a href={`${BASE}admin/`}>Login do cliente</a>
+          {isDemo && <a href={`${BASE}admin/`}>Demonstração</a>}
+        </span>
       </footer>
     </div>
   );
