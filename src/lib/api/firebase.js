@@ -26,7 +26,6 @@ import {
   signOut as fbSignOut,
 } from 'firebase/auth';
 import {
-  addDoc,
   initializeFirestore,
   persistentLocalCache,
   persistentMultipleTabManager,
@@ -503,20 +502,24 @@ const api = {
   },
 
   // ---------- interessados ----------
+  /** O id do pedido é o WhatsApp: o mesmo número não cria pedidos repetidos. */
   async createLead(data) {
     const clean = (v, max) => (v ? String(v).trim().slice(0, max) : null);
-    await wrap(
-      addDoc(P.leads(), {
-        name: clean(data.name, 80),
-        restaurant: clean(data.restaurant, 80),
-        city: clean(data.city, 80),
-        phone: clean(data.phone, 20),
-        email: clean(data.email, 120),
-        message: clean(data.message, 600),
-        status: 'new',
-        createdAt: serverTimestamp(),
-      }),
-    );
+    const phone = String(data.phone || '').replace(/\D/g, '');
+    await setDoc(P.lead(phone), {
+      name: clean(data.name, 80),
+      restaurant: clean(data.restaurant, 80),
+      city: clean(data.city, 80),
+      phone,
+      email: clean(data.email, 120),
+      message: clean(data.message, 600),
+      status: 'new',
+      createdAt: serverTimestamp(),
+    }).catch((e) => {
+      // já existe um pedido desse número: para o visitante, está tudo certo
+      if (e?.code === 'permission-denied') return;
+      throw friendly(e);
+    });
   },
   watchLeads(cb, onError) {
     return onSnapshot(

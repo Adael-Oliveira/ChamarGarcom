@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import api from '../../lib/api';
 import { Icon } from './Icon';
 import '../contact.css';
@@ -54,6 +54,8 @@ export function LeadForm({ initial = {}, onSent, compact }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [sent, setSent] = useState(false);
+  const [trap, setTrap] = useState(''); // campo invisível: só robô preenche
+  const openedAt = useRef(Date.now());
   const set = (k) => (e) => setF((x) => ({ ...x, [k]: e.target.value }));
 
   const submit = async (e) => {
@@ -64,6 +66,13 @@ export function LeadForm({ initial = {}, onSent, compact }) {
     if (f.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email.trim())) return setError('Confira o e-mail.');
     setBusy(true);
     setError('');
+    // robô (campo escondido preenchido ou envio instantâneo): finge que deu certo e não grava
+    if (trap || Date.now() - openedAt.current < 2500) {
+      await new Promise((r) => setTimeout(r, 600));
+      setSent(true);
+      setBusy(false);
+      return;
+    }
     try {
       await api.createLead({ ...f, phone, email: f.email.trim().toLowerCase() });
       setSent(true);
@@ -115,11 +124,16 @@ export function LeadForm({ initial = {}, onSent, compact }) {
           <textarea className="input" rows={3} value={f.message} onChange={set('message')} maxLength={600} placeholder="Quantas mesas, quando quer começar…" />
         </label>
       )}
+      <label className="lead-trap" aria-hidden="true">
+        Site
+        <input tabIndex={-1} autoComplete="off" value={trap} onChange={(e) => setTrap(e.target.value)} />
+      </label>
       <div className="lead-wide">
         <button className="btn btn-dark btn-lg btn-block" disabled={busy}>
           {busy ? 'Enviando…' : 'Quero minha ferramenta'}
         </button>
         {error && <p className="field-error">{error}</p>}
+        <p className="lead-privacy">Usamos seus dados só para falar com você sobre a ferramenta. Nada é compartilhado.</p>
       </div>
     </form>
   );

@@ -57,3 +57,16 @@
   color: #fff;
   flex-shrink: 0;
 }
+.lead-trap {
+  position: absolute;
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+.lead-privacy {
+  margin: 10px 0 0;
+  font-size: 0.78rem;
+  color: var(--ink-3);
+  text-align: center;
+}

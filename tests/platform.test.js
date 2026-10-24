@@ -51,6 +51,7 @@ function newClient(db, { rid = 'r9', email = 'novo@gmail.com', by = 'adael', sus
   return b.commit();
 }
 
+const addLead = (db, d) => setDoc(doc(db, `leads/${d.phone}`), d);
 const lead = (over = {}) => ({ name: 'Maria', restaurant: 'Café da Maria', city: 'Osasco', phone: '11988887777', email: 'maria@gmail.com', message: 'Tenho 10 mesas', status: 'new', createdAt: serverTimestamp(), ...over });
 
 describe('dono da plataforma', () => {
@@ -148,15 +149,20 @@ describe('suspensão', () => {
 describe('interessados ("Quero minha ferramenta")', () => {
   beforeEach(() => seed());
   test('qualquer visitante deixa o contato', async () => {
-    await assertSucceeds(addDoc(collection(anon(), 'leads'), lead()));
-    await assertSucceeds(addDoc(collection(estranho(), 'leads'), lead({ email: null, city: null, message: null })));
+    await assertSucceeds(addLead(anon(), lead()));
+    await assertSucceeds(addLead(estranho(), lead({ phone: '11977776666', email: null, city: null, message: null })));
   });
   test('formulário inválido é recusado', async () => {
-    await assertFails(addDoc(collection(anon(), 'leads'), lead({ phone: '123' })));
-    await assertFails(addDoc(collection(anon(), 'leads'), lead({ name: '' })));
-    await assertFails(addDoc(collection(anon(), 'leads'), lead({ status: 'client' })));
-    await assertFails(addDoc(collection(anon(), 'leads'), lead({ message: 'x'.repeat(700) })));
-    await assertFails(addDoc(collection(anon(), 'leads'), lead({ extra: 1 })));
+    await assertFails(addLead(anon(), lead({ phone: '123' })));
+    await assertFails(addLead(anon(), lead({ name: '' })));
+    await assertFails(addLead(anon(), lead({ status: 'client' })));
+    await assertFails(addLead(anon(), lead({ message: 'x'.repeat(700) })));
+    await assertFails(addLead(anon(), lead({ extra: 1 })));
+  });
+  test('o mesmo WhatsApp não envia de novo nem sobrescreve; id precisa ser o número', async () => {
+    await assertSucceeds(addLead(anon(), lead()));
+    await assertFails(addLead(anon(), lead({ name: 'Outro' })));
+    await assertFails(setDoc(doc(anon(), 'leads/qualquer'), lead()));
   });
   test('só o dono da plataforma lê e atualiza os interessados', async () => {
     await assertSucceeds(getDocs(collection(adael(), 'leads')));

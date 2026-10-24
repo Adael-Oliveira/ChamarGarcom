@@ -83,8 +83,11 @@ service cloud.firestore {
     }
 
     // ---------- interessados ("Quero minha ferramenta") ----------
+    // id = WhatsApp (só dígitos): cada número envia um pedido; reenviar não sobrescreve
     match /leads/{leadId} {
-      allow create: if request.resource.data.keys().hasOnly(['name', 'restaurant', 'city', 'phone', 'email', 'message', 'status', 'createdAt'])
+      allow create: if leadId == request.resource.data.get('phone', '')
+        && leadId.matches('^[0-9]{10,13}$')
+        && request.resource.data.keys().hasOnly(['name', 'restaurant', 'city', 'phone', 'email', 'message', 'status', 'createdAt'])
         && request.resource.data.keys().hasAll(['name', 'restaurant', 'phone', 'status', 'createdAt'])
         && request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 80
         && request.resource.data.restaurant is string && request.resource.data.restaurant.size() > 0 && request.resource.data.restaurant.size() <= 80
