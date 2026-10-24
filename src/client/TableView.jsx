@@ -1,6 +1,7 @@
 import BrandMark from '../shared/ui/BrandMark';
 import { brandVars } from '../lib/theme/brand';
 import { fmtCountdown } from '../shared/format';
+import { PLATFORM_NAME } from '../shared/platform';
 
 function Bell({ size = 40 }) {
   return (
@@ -25,10 +26,17 @@ function MenuIcon() {
     </svg>
   );
 }
+function Check() {
+  return (
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M5 12l5 5L20 7" />
+    </svg>
+  );
+}
 
 /**
  * Tela do cliente na mesa. Componente "puro": recebe tudo por props.
- * É usado na página real (mesa.html) e na pré-visualização da tela Personalizar.
+ * É usado na página real (mesa.html) e nas pré-visualizações (Personalizar e site).
  *
  * phase: 'idle' | 'sending' | 'pending' | 'viewed'
  */
@@ -50,16 +58,20 @@ export default function TableView({
   const waiting = phase === 'pending' || phase === 'viewed';
   const canCall = enabled && cooldownMs <= 0 && !busy;
   const isBill = reason === 'bill';
+  const noTab = preview ? -1 : undefined;
+
+  let hint = 'Toque no botão e um garçom vem até você.';
+  if (!enabled) hint = '';
+  else if (busy) hint = 'Enviando o seu pedido…';
+  else if (cooldownMs > 0) hint = '';
 
   return (
-    <div className={`tv tv-${phase} ${preview ? 'tv-preview' : ''}`} style={brandVars(brand)}>
+    <div className={`tv tv-${phase} ${waiting ? 'is-waiting' : ''} ${preview ? 'tv-preview' : ''}`} style={brandVars(brand)}>
       <header className="tv-head">
+        <BrandMark brand={brand} size={48} className="tv-logo" />
         <div className="tv-brand">
-          <BrandMark brand={brand} size={44} className="tv-logo" />
-          <div className="tv-brand-text">
-            <strong>{brand.name}</strong>
-            {brand.tagline && <span>{brand.tagline}</span>}
-          </div>
+          <strong>{brand.name}</strong>
+          {brand.tagline && <span>{brand.tagline}</span>}
         </div>
         <div className="tv-table" aria-label={`Mesa ${table.number}`}>
           <span>Mesa</span>
@@ -70,7 +82,9 @@ export default function TableView({
       <main className="tv-main">
         {phase === 'viewed' && (
           <div className="tv-status tv-status-viewed" role="status" aria-live="polite">
-            <span className="tv-status-icon">✓</span>
+            <span className="tv-status-icon">
+              <Check />
+            </span>
             <div>
               <strong>{isBill ? 'A conta já vai chegar' : 'Garçom a caminho'}</strong>
               <span>{isBill ? 'Já vamos levar a conta até a sua mesa.' : 'O garçom chegará em breve.'}</span>
@@ -79,7 +93,7 @@ export default function TableView({
         )}
         {phase === 'pending' && (
           <div className="tv-status tv-status-pending" role="status" aria-live="polite">
-            <span className="tv-status-icon tv-ring">{isBill ? <Receipt size={20} /> : <Bell size={22} />}</span>
+            <span className="tv-status-icon tv-ring">{isBill ? <Receipt size={22} /> : <Bell size={26} />}</span>
             <div>
               <strong>{isBill ? 'Pedido de conta enviado!' : 'Solicitação enviada!'}</strong>
               <span>{isBill ? 'Estamos preparando a sua conta.' : 'Estamos chamando um garçom.'}</span>
@@ -90,46 +104,38 @@ export default function TableView({
         {table.active === false ? (
           <p className="tv-alert">Esta mesa está temporariamente indisponível para chamadas.</p>
         ) : !settings.callsEnabled ? (
-          <p className="tv-alert">Chamadas temporariamente indisponíveis.</p>
+          <p className="tv-alert">Chamadas temporariamente indisponíveis. Fale com um atendente.</p>
         ) : null}
 
-        <button
-          type="button"
-          className={`tv-call ${waiting ? 'is-compact' : ''}`}
-          disabled={!canCall}
-          onClick={() => !preview && onCall?.('waiter')}
-          tabIndex={preview ? -1 : undefined}
-        >
-          {busy ? <span className="tv-spin" /> : <Bell size={waiting ? 28 : 58} />}
-          <span>{busy ? 'Enviando…' : 'Chamar garçom'}</span>
-        </button>
+        <div className="tv-stage">
+          <button type="button" className={`tv-call ${waiting ? 'is-compact' : ''}`} disabled={!canCall} onClick={() => !preview && onCall?.('waiter')} tabIndex={noTab}>
+            {busy ? <span className="tv-spin" /> : <Bell size={waiting ? 26 : 64} />}
+            <span>{busy ? 'Enviando…' : waiting ? 'Chamar de novo' : 'Chamar garçom'}</span>
+          </button>
+          {!waiting && hint && <p className="tv-hint">{hint}</p>}
+          {enabled && cooldownMs > 0 && !busy && (
+            <p className="tv-cooldown">
+              Você poderá chamar de novo em <strong>{fmtCountdown(cooldownMs)}</strong>
+            </p>
+          )}
+        </div>
 
+        {error === 'rejected' && <p className="tv-alert">Não foi possível chamar agora. Aguarde alguns segundos e tente de novo.</p>}
+        {error === 'network' && <p className="tv-alert">Sem conexão com a internet. Verifique o sinal e tente de novo.</p>}
+      </main>
+
+      <nav className={`tv-dock ${settings.billEnabled ? '' : 'is-single'}`} aria-label="Outras opções">
         {settings.billEnabled && (
-          <button
-            type="button"
-            className="tv-bill"
-            disabled={!canCall}
-            onClick={() => !preview && onCall?.('bill')}
-            tabIndex={preview ? -1 : undefined}
-          >
+          <button type="button" className="tv-bill" disabled={!canCall} onClick={() => !preview && onCall?.('bill')} tabIndex={noTab}>
             <Receipt /> Pedir a conta
           </button>
         )}
-
-        {enabled && cooldownMs > 0 && !busy && (
-          <p className="tv-cooldown">
-            Você poderá chamar novamente em <strong>{fmtCountdown(cooldownMs)}</strong>
-          </p>
-        )}
-        {error === 'rejected' && <p className="tv-alert">Não foi possível chamar agora. Aguarde alguns segundos e tente de novo.</p>}
-        {error === 'network' && <p className="tv-alert">Sem conexão com a internet. Verifique o sinal e tente de novo.</p>}
-
-        <button type="button" className="tv-menu" disabled={!menuAvailable} onClick={() => !preview && onMenu?.()} tabIndex={preview ? -1 : undefined}>
-          <MenuIcon /> {menuAvailable ? 'Ver cardápio' : 'Cardápio indisponível'}
+        <button type="button" className="tv-menu" disabled={!menuAvailable} onClick={() => !preview && onMenu?.()} tabIndex={noTab}>
+          <MenuIcon /> {menuAvailable ? 'Cardápio' : 'Sem cardápio'}
         </button>
-      </main>
+      </nav>
 
-      <footer className="tv-foot">Chamar Garçom</footer>
+      <footer className="tv-foot">{PLATFORM_NAME}</footer>
     </div>
   );
 }

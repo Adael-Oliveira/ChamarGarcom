@@ -1039,7 +1039,7 @@ table.data tr.is-off td {
   scrollbar-width: none;
 }
 .phone-screen .tv {
-  min-height: 100%;
+  height: 100%;
 }
 .preview-note {
   margin: 0;

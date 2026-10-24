@@ -10,7 +10,40 @@ import { DemoBanner } from '../shared/ui/Feedback';
 import TableView from './TableView';
 import { phaseOf, useTableSession } from './useTableSession';
 
-const token = new URLSearchParams(window.location.search).get('id');
+// O link do QR Code traz o código da mesa (?id=...). Guardamos o código nesta
+// aba e limpamos o endereço: o cliente não vê nem compartilha o código.
+const KEY = 'cg:mesa';
+function readToken() {
+  const fromUrl = new URLSearchParams(window.location.search).get('id');
+  const inFrame = window.top !== window; // simulador da central: deixa como está
+  if (fromUrl) {
+    if (!inFrame) {
+      try {
+        sessionStorage.setItem(KEY, fromUrl);
+        history.replaceState(null, '', window.location.pathname);
+      } catch {
+        /* sem armazenamento: mantém o endereço */
+      }
+    }
+    return fromUrl;
+  }
+  try {
+    return sessionStorage.getItem(KEY);
+  } catch {
+    return null;
+  }
+}
+const token = readToken();
+
+function setThemeColor(color) {
+  let m = document.querySelector('meta[name="theme-color"]');
+  if (!m) {
+    m = document.createElement('meta');
+    m.name = 'theme-color';
+    document.head.appendChild(m);
+  }
+  m.content = color;
+}
 
 function Message({ title, text }) {
   return (
@@ -59,6 +92,7 @@ function Page() {
   useEffect(() => {
     if (!brand) return;
     applyBrand(brand);
+    setThemeColor(brand.primary);
     document.title = `${brand.name} · Mesa ${s.link.data?.number ?? ''}`;
   }, [brand?.primary, brand?.accent, brand?.style, brand?.name, s.link.data?.number]); // eslint-disable-line
 

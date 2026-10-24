@@ -1,5 +1,25 @@
 body {
   background: #f6f6f4;
+  overscroll-behavior: none;
+}
+/* a faixa de demonstração (quando existe) e a mesa dividem a altura da tela */
+#root {
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+#root > .tv {
+  flex: 1;
+  height: auto;
+  min-height: 0;
+}
+@media (min-width: 640px) and (min-height: 640px) {
+  #root > .tv {
+    flex: 0 1 880px;
+  }
+  body {
+    background: color-mix(in srgb, var(--brand) 9%, #e9e8e4);
+  }
 }
 .c-msg {
   min-height: 100dvh;

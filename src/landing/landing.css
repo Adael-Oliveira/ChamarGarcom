@@ -85,12 +85,6 @@
   overflow: hidden;
   font-size: 0.86rem;
 }
-.lp-phone .tv-table b {
-  font-size: 3.6rem;
-}
-.lp-phone .tv-call:not(.is-compact) {
-  width: 160px;
-}
 .lp-phone-a {
   right: 0;
   top: 0;
