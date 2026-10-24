@@ -1,5 +1,5 @@
 /* =====================================================================
-   Chamar Garçom — base da plataforma
+   Acenai — base da plataforma
    Neutros frios levemente azulados; a cor de destaque vem da marca do
    restaurante (--brand), configurada na tela Personalizar.
    ===================================================================== */
@@ -390,8 +390,8 @@ code {
   object-fit: contain;
 }
 .platform-mark {
-  color: var(--ink);
-  --pm-ink: var(--canvas);
+  color: #15171c;
+  flex-shrink: 0;
 }
 
 /* ---------- carregando ---------- */
@@ -528,4 +528,18 @@ code {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* nome da plataforma: "Acen" + "ai" em âmbar */
+.wordmark {
+  font-family: var(--display);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.wordmark b {
+  font-weight: inherit;
+  background: linear-gradient(135deg, #ffc21a, #ff8a00);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }

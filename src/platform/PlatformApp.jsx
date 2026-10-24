@@ -66,7 +66,7 @@ export default function PlatformApp({ user, admin }) {
               <PlatformMark size={26} />
             </span>
             <span>
-              <strong>Chamar Garçom</strong>
+              <strong>Acenai</strong>
               <small>Administração da plataforma</small>
             </span>
           </a>

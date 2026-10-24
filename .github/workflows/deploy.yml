@@ -27,13 +27,16 @@ jobs:
 
       - run: npm ci
 
+      # Com domínio próprio (arquivo public/CNAME) o site fica na raiz "/";
+      # sem ele, em /NOME-DO-REPOSITORIO/ (ex.: /ChamarGarcom/).
+      - name: Endereço do site
+        run: |
+          if [ -s public/CNAME ]; then echo "SITE_BASE=/" >> "$GITHUB_ENV"; else echo "SITE_BASE=/${{ github.event.repository.name }}/" >> "$GITHUB_ENV"; fi
+
       - name: Gerar o site
         run: npm run build
         env:
-          # Endereço do site = nome do repositório (ex.: /ChamarGarcom/).
-          # Domínio próprio ou repositório USUARIO.github.io: crie a variável
-          # de repositório VITE_BASE_PATH com o valor "/".
-          VITE_BASE_PATH: ${{ vars.VITE_BASE_PATH || format('/{0}/', github.event.repository.name) }}
+          VITE_BASE_PATH: ${{ vars.VITE_BASE_PATH || env.SITE_BASE }}
           VITE_PUBLIC_APP_URL: ${{ vars.VITE_PUBLIC_APP_URL }}
           # Opcional: a configuração do Firebase também pode ficar em
           # src/config/firebase.config.js (mais simples). Se existirem, estes têm prioridade.

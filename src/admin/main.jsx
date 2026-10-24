@@ -102,9 +102,9 @@ function Denied({ user }) {
   return (
     <AuthCard wide>
       <span className="pitch-kicker">
-        <Icon name="store" size={16} /> Chamar Garçom para o seu restaurante
+        <Icon name="store" size={16} /> Acenai para o seu restaurante
       </span>
-      <h1>Quer o Chamar Garçom no seu restaurante?</h1>
+      <h1>Quer o Acenai no seu restaurante?</h1>
       <p className="muted">
         QR Code em cada mesa, chamadas em tempo real no caixa e a página dos clientes com o logo e as cores da sua casa. Deixe seu contato ou chame no WhatsApp para liberarmos a sua central.
       </p>

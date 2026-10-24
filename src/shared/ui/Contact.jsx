@@ -21,7 +21,7 @@ export function fmtPhone(v) {
 }
 
 /** Botões de contato (WhatsApp, e-mail, Instagram). Não mostra nada se não houver contatos. */
-export function ContactButtons({ contacts, text = 'Olá! Tenho interesse no Chamar Garçom para o meu restaurante.', size = '' }) {
+export function ContactButtons({ contacts, text = 'Olá! Tenho interesse no Acenai para o meu restaurante.', size = '' }) {
   if (!contacts) return null;
   const { whatsapp, email, instagram } = contacts;
   if (!whatsapp && !email && !instagram) return null;
@@ -33,7 +33,7 @@ export function ContactButtons({ contacts, text = 'Olá! Tenho interesse no Cham
         </a>
       )}
       {email && (
-        <a className={`btn ${size}`} href={`mailto:${email}?subject=${encodeURIComponent('Chamar Garçom para o meu restaurante')}&body=${encodeURIComponent(text)}`}>
+        <a className={`btn ${size}`} href={`mailto:${email}?subject=${encodeURIComponent('Acenai para o meu restaurante')}&body=${encodeURIComponent(text)}`}>
           <Icon name="mail" size={18} /> {email}
         </a>
       )}

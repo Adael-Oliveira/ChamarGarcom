@@ -1,6 +1,8 @@
-# Chamar Garçom
+# Acenai
 
-Plataforma de chamada de garçom por QR Code, para qualquer restaurante.
+*Um sinal. Atendimento imediato.*
+
+Acenai é a plataforma de chamada de garçom por QR Code, para qualquer restaurante.
 
 - **Cliente:** aponta a câmera para o QR Code da mesa e toca em **Chamar garçom** ou **Pedir a conta**. Não precisa de aplicativo, cadastro ou Wi-Fi do restaurante.
 - **Equipe:** a chamada entra na fila da central com som e cronômetro. Um clique em **Visualizado** avisa o cliente na hora.

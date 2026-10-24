@@ -12,7 +12,7 @@ const isEmail = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
 
 export function inviteMessage(restaurant, email) {
   return (
-    `Olá! A central do Chamar Garçom do ${restaurant} está liberada.\n\n` +
+    `Olá! A central do Acenai do ${restaurant} está liberada.\n\n` +
     `1. Acesse ${appUrl()}admin/\n` +
     `2. Entre com a conta Google ${email}\n` +
     `3. Aceite o convite: você entra como Responsável, com controle total do restaurante.\n\n` +

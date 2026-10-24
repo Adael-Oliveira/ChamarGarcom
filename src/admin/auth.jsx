@@ -2,7 +2,7 @@ import { useState } from 'react';
 import api, { isDemo } from '../lib/api';
 import { BASE } from '../lib/env';
 import { DemoBanner, FullScreen } from '../shared/ui/Feedback';
-import PlatformMark from '../shared/ui/PlatformMark';
+import PlatformMark, { Wordmark } from '../shared/ui/PlatformMark';
 import { Icon } from '../shared/ui/Icon';
 
 // Telas de entrada usadas pela central do restaurante e pela administração da plataforma.
@@ -13,7 +13,7 @@ export function AuthCard({ children, wide }) {
     <FullScreen>
       <div className={`auth-card ${wide ? 'is-wide' : ''}`}>
         <a className="auth-platform" href={BASE}>
-          <PlatformMark size={28} /> Chamar Garçom
+          <PlatformMark size={28} /> <Wordmark />
         </a>
         {children}
       </div>

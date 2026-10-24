@@ -74,7 +74,7 @@ export default function Leads() {
               </div>
               {l.message && <p className="client-notes">{l.message}</p>}
               <div className="client-actions">
-                <a className="btn btn-sm btn-wa" href={waLink(l.phone.length <= 11 ? '55' + l.phone : l.phone, `Olá, ${l.name}! Aqui é do Chamar Garçom. Vi seu interesse para o ${l.restaurant}.`)} target="_blank" rel="noopener noreferrer">
+                <a className="btn btn-sm btn-wa" href={waLink(l.phone.length <= 11 ? '55' + l.phone : l.phone, `Olá, ${l.name}! Aqui é do Acenai. Vi seu interesse para o ${l.restaurant}.`)} target="_blank" rel="noopener noreferrer">
                   <Icon name="whatsapp" size={16} /> {fmtPhone(l.phone)}
                 </a>
                 {l.email && (

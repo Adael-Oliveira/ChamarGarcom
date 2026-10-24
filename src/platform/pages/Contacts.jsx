@@ -70,7 +70,7 @@ export default function Contacts() {
 
         <Panel title="Como os visitantes veem">
           <div className="contacts-preview">
-            <strong>Quer o Chamar Garçom no seu restaurante?</strong>
+            <strong>Quer o Acenai no seu restaurante?</strong>
             <ContactButtons contacts={f} />
             {!f.whatsapp && !f.email && !f.instagram && <p className="muted small">Preencha ao menos um contato.</p>}
           </div>

@@ -6,7 +6,8 @@ import '../client/table-view.css';
 import './landing.css';
 import { isDemo } from '../lib/api';
 import { BASE } from '../lib/env';
-import PlatformMark from '../shared/ui/PlatformMark';
+import PlatformMark, { Wordmark } from '../shared/ui/PlatformMark';
+import { PLATFORM_TAGLINE } from '../shared/platform';
 import { Icon } from '../shared/ui/Icon';
 import TableView from '../client/TableView';
 import { ContactButtons, LeadForm, useContacts } from '../shared/ui/Contact';
@@ -24,7 +25,7 @@ function Landing() {
     <div className="lp">
       <header className="lp-nav">
         <a className="lp-logo" href={BASE}>
-          <PlatformMark size={30} /> Chamar Garçom
+          <PlatformMark size={30} /> <Wordmark />
         </a>
         <nav className="lp-nav-actions" aria-label="Acesso">
           <a className="btn btn-ghost" href="#quero">
@@ -115,7 +116,9 @@ function Landing() {
       </section>
 
       <footer className="lp-foot">
-        <span>Chamar Garçom</span>
+        <span>
+          <Wordmark /> · {PLATFORM_TAGLINE}
+        </span>
         <span className="lp-foot-links">
           <a href="#quero">Quero minha ferramenta</a>
           <a href={`${BASE}admin/`}>Login do cliente</a>

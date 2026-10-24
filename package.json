@@ -3,7 +3,7 @@
   "private": true,
   "version": "2.0.0",
   "type": "module",
-  "description": "Chamar Garçom — plataforma white-label de chamada de garçom por QR Code (React + Vite + Firebase)",
+  "description": "Acenai — plataforma white-label de chamada de garçom por QR Code (React + Vite + Firebase)",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
