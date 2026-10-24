@@ -188,7 +188,7 @@ const api = {
 
   async acceptInvite(user, invite) {
     const b = writeBatch(db);
-    b.set(P.admin(user.uid), { restaurantId: invite.restaurantId, role: 'staff', email: user.email, name: user.name || '', createdAt: serverTimestamp() });
+    b.set(P.admin(user.uid), { restaurantId: invite.restaurantId, role: invite.role === 'owner' ? 'owner' : 'staff', email: user.email, name: user.name || '', createdAt: serverTimestamp() });
     b.delete(P.invite(user.email));
     await wrap(b.commit());
   },
@@ -343,12 +343,12 @@ const api = {
       u2();
     };
   },
-  async invite(rid, email, by) {
+  async invite(rid, email, by, role = 'staff') {
     const e = normalizeEmail(email);
     const existing = await getDoc(P.invite(e)).catch(() => null);
     if (existing?.exists()) throw new Error('Já existe um convite para este e-mail.');
     const b = writeBatch(db);
-    b.set(P.invite(e), { restaurantId: rid, role: 'staff', createdBy: by, createdAt: serverTimestamp() });
+    b.set(P.invite(e), { restaurantId: rid, role: role === 'owner' ? 'owner' : 'staff', createdBy: by, createdAt: serverTimestamp() });
     await wrap(b.commit());
   },
   revokeInvite: (email) => wrap(deleteDoc(P.invite(normalizeEmail(email)))),

@@ -302,11 +302,11 @@ const api = {
           .map(([email, i]) => ({ email, ...i, createdAt: D(i.createdAt) })),
       }),
     ),
-  async invite(rid, email, by) {
+  async invite(rid, email, by, role = 'staff') {
     const e = normalizeEmail(email);
     commit((d) => {
       if (d.invites[e]) throw new Error('Já existe um convite para este e-mail.');
-      d.invites[e] = { restaurantId: rid, role: 'staff', createdBy: by, createdAt: Date.now() };
+      d.invites[e] = { restaurantId: rid, role: role === 'owner' ? 'owner' : 'staff', createdBy: by, createdAt: Date.now() };
     });
   },
   revokeInvite: async (email) => commit((d) => delete d.invites[normalizeEmail(email)]),

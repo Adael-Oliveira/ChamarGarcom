@@ -1295,3 +1295,63 @@ table.data tr.is-off td {
     flex: 1 1 40%;
   }
 }
+
+/* ---------- convite com papel ---------- */
+.invite-form {
+  display: grid;
+  gap: 16px;
+  max-width: 640px;
+}
+.role-pick {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.role-pick legend {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--ink-2);
+  margin-bottom: 6px;
+  padding: 0;
+}
+.role-option {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r);
+  background: var(--surface);
+  cursor: pointer;
+}
+.role-option.is-on {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 1px var(--brand);
+  background: var(--brand-softer);
+}
+.role-option input {
+  margin-top: 3px;
+  accent-color: var(--brand);
+}
+.role-option strong,
+.role-option small {
+  display: block;
+}
+.role-option small {
+  color: var(--ink-2);
+  font-size: 0.8rem;
+  line-height: 1.35;
+  margin-top: 2px;
+}
+.invite-help {
+  margin: 14px 0 0;
+  max-width: 640px;
+}
+@media (max-width: 520px) {
+  .role-pick {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

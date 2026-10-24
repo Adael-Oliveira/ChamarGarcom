@@ -141,7 +141,8 @@ function Invite({ user, invite, onDone }) {
     <AuthCard>
       <h1>Você foi convidado</h1>
       <p className="muted">
-        A equipe de <strong>{invite.restaurantName}</strong> convidou <strong>{user.email}</strong> para usar a central de chamadas.
+        <strong>{invite.restaurantName}</strong> convidou <strong>{user.email}</strong> para a central de chamadas como{' '}
+        <strong>{invite.role === 'owner' ? 'Responsável (controle total do restaurante)' : 'Equipe'}</strong>.
       </p>
       <button className="btn btn-dark btn-lg btn-block" onClick={accept} disabled={busy}>
         {busy ? 'Entrando…' : 'Aceitar convite'}

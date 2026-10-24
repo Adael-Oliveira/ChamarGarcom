@@ -218,12 +218,13 @@ service cloud.firestore {
           && !exists(restaurantPath(request.resource.data.restaurantId))
           && getAfter(restaurantPath(request.resource.data.restaurantId)).data.ownerUid == me())
         ||
-        // equipe: aceitando um convite para o próprio e-mail (que é consumido no mesmo lote)
-        (request.resource.data.role == 'staff'
-          && emailVerified()
+        // convidado: aceitando um convite para o próprio e-mail (consumido no mesmo lote),
+        // com exatamente o papel definido no convite (responsável ou equipe)
+        (emailVerified()
           && request.resource.data.email == myEmail()
           && exists(invitePath(myEmail()))
           && get(invitePath(myEmail())).data.restaurantId == request.resource.data.restaurantId
+          && get(invitePath(myEmail())).data.role == request.resource.data.role
           && !existsAfter(invitePath(myEmail())))
       );
       allow update: if false;
@@ -239,7 +240,7 @@ service cloud.firestore {
         && email == email.lower()
         && isOwnerOf(request.resource.data.restaurantId)
         && request.resource.data.keys().hasOnly(['restaurantId', 'role', 'createdBy', 'createdAt'])
-        && request.resource.data.role == 'staff'
+        && request.resource.data.role in ['owner', 'staff']
         && request.resource.data.createdBy == me()
         && request.resource.data.createdAt == request.time;
       allow update: if false;

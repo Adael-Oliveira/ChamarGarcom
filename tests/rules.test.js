@@ -114,6 +114,39 @@ describe('convites', () => {
     b.delete(doc(db, 'invites/bia@gmail.com'));
     await assertSucceeds(b.commit());
   });
+  test('convidado como Responsável entra com controle total', async () => {
+    await assertSucceeds(setDoc(doc(owner(), 'invites/socio@gmail.com'), { restaurantId: RID, role: 'owner', createdBy: 'dono', createdAt: serverTimestamp() }));
+    const db = as('socio', 'socio@gmail.com');
+    const b = writeBatch(db);
+    b.set(doc(db, 'admins/socio'), { restaurantId: RID, role: 'owner', email: 'socio@gmail.com', name: 'Sócio', createdAt: serverTimestamp() });
+    b.delete(doc(db, 'invites/socio@gmail.com'));
+    await assertSucceeds(b.commit());
+    await assertSucceeds(updateDoc(doc(db, `restaurants/${RID}/settings/brand`), { primary: '#123456', updatedAt: serverTimestamp() }));
+    await assertSucceeds(deleteDoc(doc(db, 'admins/garcom')));
+  });
+  test('Responsável convidado não remove o outro Responsável', async () => {
+    await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), 'admins/socio'), { restaurantId: RID, role: 'owner', email: 'socio@gmail.com', name: '' }));
+    await assertFails(deleteDoc(doc(as('socio', 'socio@gmail.com'), 'admins/dono')));
+  });
+  test('convite de Equipe não pode ser aceito como Responsável', async () => {
+    await invite(owner());
+    const db = as('bia', 'bia@gmail.com');
+    const b = writeBatch(db);
+    b.set(doc(db, 'admins/bia'), { restaurantId: RID, role: 'owner', email: 'bia@gmail.com', name: '', createdAt: serverTimestamp() });
+    b.delete(doc(db, 'invites/bia@gmail.com'));
+    await assertFails(b.commit());
+  });
+  test('Equipe não convida ninguém, nem como Responsável', () =>
+    assertFails(setDoc(doc(staff(), 'invites/x@gmail.com'), { restaurantId: RID, role: 'owner', createdBy: 'garcom', createdAt: serverTimestamp() })));
+  test('qualquer outra conta Google é barrada (cadastros fechados, sem convite)', async () => {
+    const db = as('estranho', 'estranho@gmail.com');
+    await assertFails(getDocs(collection(db, `restaurants/${RID}/tables`)));
+    await assertFails(getDocs(collection(db, `restaurants/${RID}/calls`)));
+    await assertFails(updateDoc(doc(db, `restaurants/${RID}/settings/general`), { callsEnabled: false }));
+    await assertFails(onboarding(db, 'estranho'));
+    await assertFails(setDoc(doc(db, 'admins/estranho'), { restaurantId: RID, role: 'staff', email: 'estranho@gmail.com', name: '', createdAt: serverTimestamp() }));
+    await assertFails(updateDoc(doc(db, 'platform/config'), { signupOpen: true }));
+  });
   test('convite não serve para outro e-mail', async () => {
     await invite(owner());
     const db = as('eve', 'eve@gmail.com');
