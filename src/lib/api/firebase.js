@@ -125,7 +125,7 @@ function userOf(u) {
 function friendly(e) {
   const code = e?.code || '';
   if (code === 'permission-denied')
-    return Object.assign(new Error('Sem permissão. Confira se as regras do Firestore foram publicadas (veja o README).'), { code });
+    return Object.assign(new Error('Sua conta não tem acesso a isso. Se acha que é um engano, fale com o suporte da plataforma.'), { code });
   if (code === 'unavailable') return Object.assign(new Error('Sem conexão com o servidor. Verifique a internet.'), { code });
   return e;
 }
@@ -222,6 +222,10 @@ const api = {
     await wrap(b.commit());
   },
 
+  /** Acompanha o próprio acesso (some quando a pessoa é removida da equipe). */
+  watchMyAccess(uid, cb) {
+    return onSnapshot(P.admin(uid), (s) => cb(s.exists() ? s.data() : null), () => cb(null));
+  },
   watchPlatform(cb) {
     return onSnapshot(P.platform(), (s) => cb(s.exists() ? s.data() : null), () => cb(null));
   },
@@ -327,7 +331,7 @@ const api = {
     await new Promise((res, rej) => {
       task.on('state_changed', (x) => onProgress?.(x.totalBytes ? x.bytesTransferred / x.totalBytes : 0), rej, res);
     }).catch((e) => {
-      if (e.code === 'storage/unauthorized') throw new Error('Sem permissão no Storage. Publique o storage.rules (veja o README).');
+      if (e.code === 'storage/unauthorized') throw new Error('O envio de PDF não está disponível. Use a opção de link ou fale com o suporte da plataforma.');
       if (/storage\/(unknown|retry-limit-exceeded|no-default-bucket|bucket-not-found)/.test(e.code))
         throw new Error('O Firebase Storage não está ativado neste projeto. Use a opção de link ou ative o Storage (plano Blaze).');
       throw e;
@@ -462,6 +466,40 @@ const api = {
     b.update(P.restaurant(rid), { suspended: !!suspended });
     b.update(P.settings(rid), { suspended: !!suspended, updatedAt: serverTimestamp() });
     await wrap(b.commit());
+  },
+
+  /** Exclui o restaurante e tudo dele (mesas, QR Codes, chamadas, marca, equipe, convites). */
+  async deleteRestaurant(rid, onProgress) {
+    const [tables, states, calls, admins, invites, settings] = await wrap(
+      Promise.all([
+        getDocs(P.tables(rid)),
+        getDocs(collection(db, 'restaurants', rid, 'tableState')),
+        getDocs(P.calls(rid)),
+        getDocs(query(P.admins(), where('restaurantId', '==', rid))),
+        getDocs(query(P.invites(), where('restaurantId', '==', rid))),
+        getDoc(P.settings(rid)),
+      ]),
+    );
+    const refs = [
+      ...calls.docs.map((d) => d.ref),
+      ...states.docs.map((d) => d.ref),
+      ...tables.docs.map((d) => P.link(d.data().token)),
+      ...tables.docs.map((d) => d.ref),
+      ...invites.docs.map((d) => d.ref),
+      ...admins.docs.map((d) => d.ref),
+      P.settings(rid),
+      P.brand(rid),
+    ];
+    // até 450 exclusões por lote; o restaurante sai por último
+    for (let i = 0; i < refs.length; i += 450) {
+      const b = writeBatch(db);
+      refs.slice(i, i + 450).forEach((r) => b.delete(r));
+      await wrap(b.commit());
+      onProgress?.(Math.min(1, (i + 450) / refs.length));
+    }
+    await wrap(deleteDoc(P.restaurant(rid)));
+    const menuPath = settings.data()?.menuPath;
+    if (menuPath) storage().then(({ m, s }) => m.deleteObject(m.ref(s, menuPath))).catch(() => {});
   },
 
   // ---------- interessados ----------

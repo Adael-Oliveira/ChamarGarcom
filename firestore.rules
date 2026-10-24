@@ -138,7 +138,8 @@ service cloud.firestore {
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name'])
           && request.resource.data.name is string
           && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 80);
-      allow delete: if false;
+      // só o dono da plataforma exclui um restaurante (a tela apaga tudo dele antes)
+      allow delete: if isPlatformOwner();
 
       // ----- configurações (públicas: o cliente precisa ler) -----
       function validGeneral(d) {
@@ -170,7 +171,7 @@ service cloud.firestore {
         allow update: if (docId == 'general' && isAdminOf(rid) && validGeneral(request.resource.data)
               && (isPlatformOwner() || !request.resource.data.diff(resource.data).affectedKeys().hasAny(['suspended'])))
           || (docId == 'brand' && isOwnerOf(rid) && validBrand(request.resource.data));
-        allow delete: if false;
+        allow delete: if isPlatformOwner();
       }
 
       // ----- mesas (só a equipe) -----
@@ -298,9 +299,10 @@ service cloud.firestore {
           && !existsAfter(invitePath(myEmail())))
       );
       allow update: if false;
-      // o responsável remove a equipe; o dono da plataforma remove qualquer um (menos ele mesmo)
+      // o responsável remove a equipe; o dono da plataforma remove qualquer um
+      // (inclusive o próprio acesso, ao excluir o restaurante dele — continua dono da plataforma)
       allow delete: if (signedIn() && resource.data.role == 'staff' && isOwnerOf(resource.data.restaurantId))
-        || (isPlatformOwner() && uid != me());
+        || isPlatformOwner();
     }
 
     // ---------- convites (id = e-mail em minúsculas) ----------

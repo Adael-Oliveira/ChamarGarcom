@@ -78,7 +78,7 @@ export default function PlatformApp({ user, admin }) {
                 {n.id === 'interessados' && newLeads > 0 && <em className="side-badge">{newLeads}</em>}
               </a>
             ))}
-            {admin?.restaurantId && (
+            {clients.data.some((r) => r.members.some((m) => m.uid === user.uid)) && (
               <a href={`${BASE}admin/`} className="side-platform">
                 <Icon name="grid" />
                 <span className="side-label">Minha central</span>

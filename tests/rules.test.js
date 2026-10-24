@@ -168,6 +168,7 @@ describe('convites', () => {
     await assertFails(getDocs(query(collection(as('outro'), 'admins'), where('restaurantId', '==', RID))));
   });
   test('responsável remove equipe; ninguém remove o responsável', async () => {
+    await seed({ platform: { ownerUid: 'plataforma', signupOpen: false } }); // dono do restaurante ≠ dono da plataforma
     await assertSucceeds(deleteDoc(doc(owner(), 'admins/garcom')));
     await assertFails(deleteDoc(doc(owner(), 'admins/dono')));
   });

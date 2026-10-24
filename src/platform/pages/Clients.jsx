@@ -187,6 +187,9 @@ export default function Clients() {
                             <Icon name="pause" size={16} /> Pausar acesso
                           </button>
                         ))}
+                      <button className="btn btn-sm btn-ghost btn-danger" onClick={() => setModal({ type: 'delete', r })}>
+                        <Icon name="trash" size={16} /> Excluir restaurante
+                      </button>
                       <span className="muted small client-id">
                         Código: <code>{r.id}</code>
                       </span>
@@ -212,6 +215,7 @@ export default function Clients() {
           onConfirm={() => run(() => api.setSuspended(modal.r.id, true), `${modal.r.name} pausado`).then(() => setModal(null), () => {})}
         />
       )}
+      {modal?.type === 'delete' && <DeleteClient r={modal.r} onClose={() => setModal(null)} />}
       {modal?.type === 'remove' && (
         <Confirm
           title={`Remover ${modal.m.name || modal.m.email}?`}
@@ -223,6 +227,52 @@ export default function Clients() {
         />
       )}
     </>
+  );
+}
+
+function DeleteClient({ r, onClose }) {
+  const { run } = usePlatform();
+  const [typed, setTyped] = useState('');
+  const [busy, setBusy] = useState(false);
+  const ok = typed.trim().toLowerCase() === (r.name || '').trim().toLowerCase();
+  const go = async () => {
+    if (!ok || busy) return;
+    setBusy(true);
+    try {
+      await run(() => api.deleteRestaurant(r.id), `${r.name} excluído`);
+      onClose();
+    } catch {
+      setBusy(false);
+    }
+  };
+  return (
+    <Modal
+      title={`Excluir ${r.name}?`}
+      onClose={busy ? () => {} : onClose}
+      footer={
+        <>
+          <button className="btn" onClick={onClose} disabled={busy}>
+            Cancelar
+          </button>
+          <button className="btn btn-danger-solid" onClick={go} disabled={!ok || busy}>
+            {busy ? 'Excluindo…' : 'Excluir para sempre'}
+          </button>
+        </>
+      }
+    >
+      <div className="auth-form">
+        <p className="muted" style={{ margin: 0 }}>
+          Apaga mesas, QR Codes, chamadas, relatórios, marca, equipe e convites deste restaurante. Os QR Codes impressos param de funcionar. <strong>Não dá para desfazer.</strong>
+          {r.mine && ' Você continua dono da plataforma.'}
+        </p>
+        <label className="field">
+          <span>
+            Digite <strong>{r.name}</strong> para confirmar
+          </span>
+          <input className="input" value={typed} onChange={(e) => setTyped(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && go()} autoComplete="off" />
+        </label>
+      </div>
+    </Modal>
   );
 }
 

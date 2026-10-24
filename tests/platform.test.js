@@ -84,9 +84,28 @@ describe('dono da plataforma', () => {
   test('convida o responsável de um restaurante existente', async () => {
     await assertSucceeds(setDoc(doc(adael(), 'invites/socio@gmail.com'), { restaurantId: 'r1', role: 'owner', createdBy: 'adael', createdAt: serverTimestamp() }));
   });
-  test('remove qualquer pessoa, menos ele mesmo', async () => {
+  test('remove qualquer pessoa da equipe', async () => {
     await assertSucceeds(deleteDoc(doc(adael(), 'admins/cliente')));
-    await assertFails(deleteDoc(doc(adael(), 'admins/adael')));
+  });
+  test('exclui um restaurante inteiro (inclusive o dele); cliente não exclui', async () => {
+    await assertFails(deleteDoc(doc(cliente(), 'restaurants/r1')));
+    await assertFails(deleteDoc(doc(cliente(), 'restaurants/r1/settings/general')));
+    const db = adael();
+    const b = writeBatch(db);
+    b.delete(doc(db, 'restaurants/r1/tables/t1'));
+    b.delete(doc(db, `tableLinks/${TOKEN}`));
+    b.delete(doc(db, 'admins/cliente'));
+    b.delete(doc(db, 'admins/garcom'));
+    b.delete(doc(db, 'restaurants/r1/settings/general'));
+    b.delete(doc(db, 'restaurants/r1/settings/brand'));
+    b.delete(doc(db, 'restaurants/r1'));
+    await assertSucceeds(b.commit());
+    const b2 = writeBatch(db);
+    b2.delete(doc(db, 'admins/adael'));
+    b2.delete(doc(db, 'restaurants/r0'));
+    await assertSucceeds(b2.commit());
+    // continua dono da plataforma
+    await assertSucceeds(getDocs(collection(db, 'restaurants')));
   });
   test('responsável não remove outro responsável', async () => {
     await assertFails(deleteDoc(doc(cliente(), 'admins/adael')));

@@ -6,6 +6,8 @@ import { DEFAULT_SETTINGS, CALL_STATUS } from '../shared/model';
 import BrandMark from '../shared/ui/BrandMark';
 import { Icon } from '../shared/ui/Icon';
 import { DemoBanner, useToast } from '../shared/ui/Feedback';
+import { ContactButtons, useContacts } from '../shared/ui/Contact';
+import { AuthCard } from './auth';
 import { useHashRoute, useLocalPref, useNewCallAlert, useRecentCalls, useWatch } from './hooks';
 import Dashboard from './pages/Dashboard';
 import Tables from './pages/Tables';
@@ -46,6 +48,7 @@ export default function AdminApp({ user, admin }) {
   const brandState = useWatch((ok, err) => api.watchBrand(rid, ok, err), [rid], null);
   const tables = useWatch((ok, err) => api.watchTables(rid, ok, err), [rid], []);
   const calls = useRecentCalls(rid);
+  const access = useWatch((ok) => api.watchMyAccess(user.uid, ok), [user.uid], undefined);
 
   const brand = useMemo(() => sanitizeBrand(brandState.data || {}), [brandState.data]);
   useEffect(() => applyBrand(brand), [brand]);
@@ -75,6 +78,13 @@ export default function AdminApp({ user, admin }) {
   const { Page } = current;
   const pending = calls.data.filter((c) => c.status === CALL_STATUS.PENDING).length;
   const err = settings.error || tables.error || calls.error || brandState.error;
+
+  // removido da equipe ou restaurante pausado com a central aberta
+  if (!admin.support && !admin.platformOwner) {
+    const removed = !access.loading && (!access.data || access.data.restaurantId !== rid);
+    if (settings.data.suspended) return <AccessLost user={user} brandName={brand.name} paused />;
+    if (removed || err?.code === 'permission-denied') return <AccessLost user={user} brandName={brand.name} />;
+  }
 
   const ctx = {
     rid,
@@ -165,5 +175,35 @@ export default function AdminApp({ user, admin }) {
         </main>
       </div>
     </Ctx.Provider>
+  );
+}
+
+/** O acesso mudou enquanto a central estava aberta (removido da equipe ou restaurante pausado). */
+function AccessLost({ user, brandName, paused }) {
+  const contacts = useContacts();
+  return (
+    <AuthCard>
+      <h1>{paused ? 'Acesso pausado' : 'Seu acesso mudou'}</h1>
+      <p className="muted">
+        {paused ? (
+          <>
+            A central{brandName ? ` do ${brandName}` : ''} está temporariamente pausada e as mesas não recebem chamadas. Fale com o suporte da plataforma para reativar.
+          </>
+        ) : (
+          <>
+            A conta <strong>{user.email}</strong> não tem mais acesso à central{brandName ? ` do ${brandName}` : ''}. Fale com o suporte da plataforma para entender o que aconteceu.
+          </>
+        )}
+      </p>
+      <ContactButtons contacts={contacts} text={`Olá! Perdi o acesso à central${brandName ? ` do ${brandName}` : ''} (${user.email}).`} />
+      <div className="auth-actions">
+        <button className="btn btn-dark" onClick={() => window.location.reload()}>
+          Tentar de novo
+        </button>
+        <button className="btn" onClick={() => api.signOut()}>
+          Sair
+        </button>
+      </div>
+    </AuthCard>
   );
 }

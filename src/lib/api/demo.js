@@ -218,6 +218,7 @@ const api = {
     channel?.postMessage('changed');
   },
 
+  watchMyAccess: (u, cb) => watch((d) => cb(d.admins[u] || null)),
   watchPlatform: (cb) => watch((d) => cb(d.platform)),
   setSignupOpen: async (open) => commit((d) => (d.platform.signupOpen = !!open)),
 
@@ -375,6 +376,14 @@ const api = {
     commit((d) => {
       d.restaurants[rid].suspended = !!suspended;
       d.settings[rid].suspended = !!suspended;
+    }),
+
+  deleteRestaurant: async (rid) =>
+    commit((d) => {
+      for (const t of d.tables[rid] || []) delete d.tableLinks[t.token];
+      for (const [u, a] of Object.entries(d.admins)) if (a.restaurantId === rid) delete d.admins[u];
+      for (const [e, i] of Object.entries(d.invites)) if (i.restaurantId === rid) delete d.invites[e];
+      ['restaurants', 'settings', 'brand', 'tables', 'tableState', 'calls'].forEach((k) => delete d[k][rid]);
     }),
 
   async createLead(data) {
