@@ -13,10 +13,10 @@
 //  quando existem, elas têm prioridade sobre este arquivo.
 // =====================================================================
 export default {
-  apiKey: '',
-  authDomain: '',
-  projectId: '',
-  storageBucket: '',
-  messagingSenderId: '',
-  appId: '',
+  apiKey: 'AIzaSyAQwZB04QYBtttFujfPsz7o8P5owV8E60Y',
+  authDomain: 'chamar-garcom-33051.firebaseapp.com',
+  projectId: 'chamar-garcom-33051',
+  storageBucket: 'chamar-garcom-33051.firebasestorage.app',
+  messagingSenderId: '256680075456',
+  appId: '1:256680075456:web:e1c5cf02fb522536c50d25',
 };
