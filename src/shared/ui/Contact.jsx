@@ -60,7 +60,7 @@ export function LeadForm({ initial = {}, onSent, compact }) {
 
   const submit = async (e) => {
     e.preventDefault();
-    if (!f.name.trim() || !f.restaurant.trim()) return setError('Preencha seu nome e o nome do restaurante.');
+    if (!f.name.trim()) return setError('Preencha o seu nome.');
     const phone = onlyDigits(f.phone);
     if (phone.length < 10 || phone.length > 13) return setError('Informe um WhatsApp com DDD, ex.: (11) 98888-7777.');
     if (f.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email.trim())) return setError('Confira o e-mail.');
@@ -99,15 +99,15 @@ export function LeadForm({ initial = {}, onSent, compact }) {
   return (
     <form className={`lead-form ${compact ? 'is-compact' : ''}`} onSubmit={submit} noValidate>
       <label className="field">
-        <span>Seu nome</span>
+        <span>Seu nome *</span>
         <input className="input" value={f.name} onChange={set('name')} maxLength={80} autoComplete="name" required />
       </label>
       <label className="field">
         <span>Restaurante</span>
-        <input className="input" value={f.restaurant} onChange={set('restaurant')} maxLength={80} placeholder="Ex.: Cantina da Praça" required />
+        <input className="input" value={f.restaurant} onChange={set('restaurant')} maxLength={80} placeholder="Ex.: Cantina da Praça (opcional)" />
       </label>
       <label className="field">
-        <span>WhatsApp</span>
+        <span>WhatsApp *</span>
         <input className="input" value={f.phone} onChange={set('phone')} maxLength={20} inputMode="tel" autoComplete="tel" placeholder="(11) 98888-7777" required />
       </label>
       <label className="field">

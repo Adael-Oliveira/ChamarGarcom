@@ -19,6 +19,11 @@ if (legacy) location.replace(`${BASE}mesa.html?id=${encodeURIComponent(legacy)}`
 const SAMPLE = { name: 'Cantina da Praça', tagline: 'Massas frescas todos os dias', primary: '#C2410C', accent: '#FDBA74', style: 'moderno', logo: null };
 const SAMPLE2 = { name: 'Bistrô do Porto', tagline: 'Cozinha de mar, mesa de casa', primary: '#0B5B73', accent: '#5EEAD4', style: 'classico', logo: null };
 
+/** Leva ao formulário "Quero minha ferramenta" e já coloca o cursor no nome. */
+function focusLead() {
+  setTimeout(() => document.querySelector('#quero input')?.focus({ preventScroll: true }), 500);
+}
+
 function Landing() {
   const contacts = useContacts();
   return (
@@ -48,8 +53,8 @@ function Landing() {
             <a className="btn btn-dark btn-lg" href="#quero">
               Quero minha ferramenta <Icon name="arrowRight" size={18} />
             </a>
-            <a className="btn btn-lg" href={`${BASE}teste.html`}>
-              <Icon name="phone" size={18} /> Testar como cliente
+            <a className="btn btn-lg" href="#quero" onClick={focusLead}>
+              <Icon name="phone" size={18} /> Quero uma demonstração
             </a>
           </div>
           <ul className="lp-facts">

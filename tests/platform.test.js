@@ -155,6 +155,7 @@ describe('interessados ("Quero minha ferramenta")', () => {
   test('formulário inválido é recusado', async () => {
     await assertFails(addLead(anon(), lead({ phone: '123' })));
     await assertFails(addLead(anon(), lead({ name: '' })));
+    await assertSucceeds(addLead(anon(), lead({ phone: '11955554444', restaurant: null })));
     await assertFails(addLead(anon(), lead({ status: 'client' })));
     await assertFails(addLead(anon(), lead({ message: 'x'.repeat(700) })));
     await assertFails(addLead(anon(), lead({ extra: 1 })));

@@ -55,7 +55,7 @@ export default function Leads() {
               <div className="client-row">
                 <span className="client-avatar">{(l.restaurant || l.name || '?')[0]}</span>
                 <div className="client-main">
-                  <strong>{l.restaurant}</strong>
+                  <strong>{l.restaurant || l.name}</strong>
                   <small>
                     {l.name}
                     {l.city && ` · ${l.city}`} · {fmtDateTime(l.createdAt)}
@@ -74,7 +74,7 @@ export default function Leads() {
               </div>
               {l.message && <p className="client-notes">{l.message}</p>}
               <div className="client-actions">
-                <a className="btn btn-sm btn-wa" href={waLink(l.phone.length <= 11 ? '55' + l.phone : l.phone, `Olá, ${l.name}! Aqui é do Acenai. Vi seu interesse para o ${l.restaurant}.`)} target="_blank" rel="noopener noreferrer">
+                <a className="btn btn-sm btn-wa" href={waLink(l.phone.length <= 11 ? '55' + l.phone : l.phone, `Olá, ${l.name}! Aqui é do Acenai. Vi seu interesse${l.restaurant ? ` para o ${l.restaurant}` : ''} no Acenai.`)} target="_blank" rel="noopener noreferrer">
                   <Icon name="whatsapp" size={16} /> {fmtPhone(l.phone)}
                 </a>
                 {l.email && (
@@ -89,7 +89,7 @@ export default function Leads() {
                       setModal({
                         type: 'convert',
                         lead: l,
-                        initial: { name: l.restaurant, email: l.email || '', notes: [l.name, l.phone && fmtPhone(l.phone), l.city].filter(Boolean).join(' · ') },
+                        initial: { name: l.restaurant || '', email: l.email || '', notes: [l.name, l.phone && fmtPhone(l.phone), l.city].filter(Boolean).join(' · ') },
                       })
                     }
                   >
