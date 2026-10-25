@@ -23,7 +23,8 @@ export function fmtPhone(v) {
 /** Botões de contato (WhatsApp, e-mail, Instagram). Não mostra nada se não houver contatos. */
 export function ContactButtons({ contacts, text = 'Olá! Tenho interesse no Acenai para o meu restaurante.', size = '' }) {
   if (!contacts) return null;
-  const { whatsapp, email, instagram } = contacts;
+  const { whatsapp, email } = contacts;
+  const instagram = (contacts.instagram || '').trim().replace(/^https?:\/\/(www\.)?instagram\.com\//, '').replace(/^@/, '').replace(/\/+$/, '');
   if (!whatsapp && !email && !instagram) return null;
   return (
     <div className="contact-buttons">
