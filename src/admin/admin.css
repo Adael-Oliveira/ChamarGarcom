@@ -113,6 +113,22 @@
   font-size: 1.05rem;
 }
 
+/* ---------- aviso de som/notificação ---------- */
+.banner-alert {
+  background: var(--wait-bg);
+  color: var(--wait-ink);
+  border: 1px solid var(--wait-line);
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+.banner-alert > span {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 220px;
+}
+
 /* ---------- modo suporte ---------- */
 .banner-support {
   background: var(--bill-bg);
@@ -882,6 +898,11 @@ table.data tr.is-off td {
   border-color: var(--wait-line);
 }
 .pill-VIEWED {
+  background: var(--ok-bg);
+  color: var(--ok-ink);
+  border-color: var(--ok-line);
+}
+.pill-active {
   background: var(--ok-bg);
   color: var(--ok-ink);
   border-color: var(--ok-line);

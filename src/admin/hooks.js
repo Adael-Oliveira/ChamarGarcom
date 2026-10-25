@@ -53,8 +53,112 @@ export function useRecentCalls(rid) {
   return useWatch((ok, err) => api.watchCallsSince(rid, since, ok, err), [rid, since.getTime()], []);
 }
 
-/** Som + título da aba quando chega chamada nova. */
-export function useNewCallAlert(calls, loading, soundOn, brandName) {
+// ============================================================ alertas de chamada
+// Som em loop enquanto houver mesa esperando + notificação do sistema (Windows/Mac/Android).
+// O loop é um áudio repetido pelo próprio navegador (não depende de timers), então continua
+// tocando com a aba em segundo plano ou com a janela minimizada.
+
+let ctx;
+function audio() {
+  ctx = ctx || new (window.AudioContext || window.webkitAudioContext)();
+  return ctx;
+}
+/** Desenha o "plim" num trecho de áudio (com silêncio no fim, para repetir). */
+function chimeBuffer(bill, seconds) {
+  const c = audio();
+  const sr = c.sampleRate;
+  const buf = c.createBuffer(1, Math.floor(sr * seconds), sr);
+  const d = buf.getChannelData(0);
+  const notes = bill ? [659, 880, 1175] : [880, 1175];
+  notes.forEach((f, i) => {
+    const t0 = Math.floor(i * 0.2 * sr);
+    const len = Math.floor(0.45 * sr);
+    for (let k = 0; k < len && t0 + k < d.length; k++) {
+      const t = k / sr;
+      const env = Math.min(1, t / 0.01) * Math.exp(-t * 7);
+      d[t0 + k] += 0.32 * env * (Math.sin(2 * Math.PI * f * t) + 0.25 * Math.sin(2 * Math.PI * f * 2 * t));
+    }
+  });
+  return buf;
+}
+/** Toca o som uma vez (botão "Testar"). */
+export function chime(bill = false) {
+  try {
+    const c = audio();
+    c.resume?.();
+    const src = c.createBufferSource();
+    src.buffer = chimeBuffer(bill, 1);
+    src.connect(c.destination);
+    src.start();
+  } catch {
+    /* sem áudio */
+  }
+}
+let loop = null; // { src, bill }
+function startLoop(bill) {
+  try {
+    if (loop && loop.bill === bill) return;
+    stopLoop();
+    const c = audio();
+    const src = c.createBufferSource();
+    src.buffer = chimeBuffer(bill, 3.5); // repete a cada 3,5 s
+    src.loop = true;
+    src.connect(c.destination);
+    src.start();
+    loop = { src, bill };
+  } catch {
+    /* sem áudio */
+  }
+}
+function stopLoop() {
+  try {
+    loop?.src.stop();
+  } catch {
+    /* já parado */
+  }
+  loop = null;
+}
+
+/** Som e notificações já liberados neste navegador? (o navegador exige um clique antes) */
+export function alertStatus() {
+  const notif = typeof Notification === 'undefined' ? 'unsupported' : Notification.permission;
+  const sound = ctx ? ctx.state : 'suspended';
+  return { notif, sound };
+}
+/** Libera o som e pede permissão de notificação (precisa ser chamado num clique). */
+export async function enableAlerts() {
+  try {
+    await audio().resume();
+  } catch {
+    /* ignora */
+  }
+  if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+    try {
+      await Notification.requestPermission();
+    } catch {
+      /* ignora */
+    }
+  }
+  return alertStatus();
+}
+// qualquer clique na central já libera o som
+if (typeof window !== 'undefined') {
+  const unlock = () => {
+    try {
+      audio().resume();
+    } catch {
+      /* ignora */
+    }
+  };
+  window.addEventListener('pointerdown', unlock, { capture: true });
+  window.addEventListener('keydown', unlock, { capture: true });
+}
+
+const ICON = `${import.meta.env.BASE_URL}favicon.svg`;
+const shown = new Map(); // callId → Notification
+
+/** Som em loop até a chamada ser visualizada + notificação no computador + título da aba. */
+export function useNewCallAlert(calls, loading, soundOn, brandName, notifyOn = true) {
   const seen = useRef(null);
   useEffect(() => {
     if (loading) return;
@@ -64,32 +168,40 @@ export function useNewCallAlert(calls, loading, soundOn, brandName) {
     } else {
       const fresh = pending.filter((c) => !seen.current.has(c.id));
       calls.forEach((c) => seen.current.add(c.id));
-      if (fresh.length && soundOn) chime(fresh.some((c) => c.reason === 'bill'));
+      if (notifyOn && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+        fresh.forEach((c) => {
+          try {
+            const n = new Notification(`Mesa ${c.tableNumber} · ${c.reason === 'bill' ? 'Pediu a conta' : 'Chamou o garçom'}`, {
+              body: `${brandName} · toque para abrir a central`,
+              icon: ICON,
+              tag: `chamada-${c.id}`,
+              requireInteraction: true,
+            });
+            n.onclick = () => {
+              window.focus();
+              n.close();
+            };
+            shown.set(c.id, n);
+          } catch {
+            /* sem notificação */
+          }
+        });
+      }
     }
-    document.title = pending.length ? `(${pending.length}) Chamada · ${brandName}` : `Central · ${brandName}`;
-  }, [calls, loading, soundOn, brandName]);
-}
-
-let ctx;
-export function chime(bill = false) {
-  try {
-    ctx = ctx || new (window.AudioContext || window.webkitAudioContext)();
-    const notes = bill ? [659, 880, 1175] : [880, 1175];
-    notes.forEach((f, i) => {
-      const o = ctx.createOscillator();
-      const g = ctx.createGain();
-      const t = ctx.currentTime + i * 0.2;
-      o.frequency.value = f;
-      g.gain.setValueAtTime(0.0001, t);
-      g.gain.exponentialRampToValueAtTime(0.3, t + 0.02);
-      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.32);
-      o.connect(g).connect(ctx.destination);
-      o.start(t);
-      o.stop(t + 0.36);
+    // fecha a notificação de quem já foi atendido
+    const pendingIds = new Set(pending.map((c) => c.id));
+    shown.forEach((n, id) => {
+      if (!pendingIds.has(id)) {
+        n.close();
+        shown.delete(id);
+      }
     });
-  } catch {
-    /* sem áudio */
-  }
+    // som repetindo enquanto houver mesa esperando
+    if (soundOn && pending.length) startLoop(pending.some((c) => c.reason === 'bill'));
+    else stopLoop();
+    document.title = pending.length ? `(${pending.length}) Chamada · ${brandName}` : `Central · ${brandName}`;
+  }, [calls, loading, soundOn, brandName, notifyOn]);
+  useEffect(() => () => stopLoop(), []);
 }
 
 /** Preferência guardada só neste navegador. */

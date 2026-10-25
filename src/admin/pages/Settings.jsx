@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import api, { isDemo } from '../../lib/api';
 import { BASE } from '../../lib/env';
 import { useAdmin } from '../AdminApp';
-import { chime } from '../hooks';
+import { alertStatus, chime, enableAlerts } from '../hooks';
 import Switch from '../../shared/ui/Switch';
 import { Confirm } from '../../shared/ui/Modal';
 import { Icon } from '../../shared/ui/Icon';
@@ -69,12 +69,14 @@ export default function Settings() {
           {!valid && <p className="field-error">Use um número inteiro de 0 a 60.</p>}
         </Row>
 
-        <Row title="Som de nova chamada" text="Toca neste computador quando uma mesa chama. Clique em qualquer lugar da central uma vez para o navegador liberar o som.">
+        <Row title="Som de nova chamada" text="Toca neste computador quando uma mesa chama e repete até alguém clicar em Visualizado. Clique em qualquer lugar da central uma vez para o navegador liberar o som.">
           <button className="btn btn-sm" onClick={() => chime()}>
             <Icon name="volume" size={16} /> Testar
           </button>
           <Switch id="s-sound" size="lg" checked={soundOn} label={soundOn ? 'Ligado' : 'Desligado'} onChange={setSoundOn} />
         </Row>
+
+        <NotifRow />
 
         {admin.platformOwner && (
           <Row title="Plataforma" text="Clientes, interessados, contatos e cadastros de novos restaurantes ficam na administração da plataforma.">
@@ -122,5 +124,46 @@ export default function Settings() {
         />
       )}
     </>
+  );
+}
+
+function NotifRow() {
+  const [st, setSt] = useState(alertStatus);
+  const labels = {
+    granted: 'Ativadas',
+    denied: 'Bloqueadas',
+    default: 'Desativadas',
+    unsupported: 'Este navegador não tem',
+  };
+  return (
+    <Row
+      title="Notificações no computador"
+      text={
+        st.notif === 'denied'
+          ? 'O navegador bloqueou. Clique no cadeado ao lado do endereço do site, em Notificações escolha Permitir e recarregue a página.'
+          : 'Aparecem no canto da tela (Windows, Mac ou Android) quando uma mesa chama, mesmo com a central minimizada. Deixe a central aberta numa aba.'
+      }
+    >
+      <span className={`pill ${st.notif === 'granted' ? 'pill-active' : ''}`}>{labels[st.notif]}</span>
+      {st.notif === 'default' && (
+        <button className="btn btn-sm btn-primary" onClick={() => enableAlerts().then(setSt)}>
+          <Icon name="bell" size={16} /> Ativar
+        </button>
+      )}
+      {st.notif === 'granted' && (
+        <button
+          className="btn btn-sm"
+          onClick={() => {
+            try {
+              new Notification('Mesa 12 · Chamou o garçom', { body: 'Teste de notificação', icon: `${BASE}favicon.svg` });
+            } catch {
+              /* ignora */
+            }
+          }}
+        >
+          Testar
+        </button>
+      )}
+    </Row>
   );
 }

@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import api from '../lib/api';
 import { BASE } from '../lib/env';
 import { applyBrand, sanitizeBrand } from '../lib/theme/brand';
@@ -8,7 +8,7 @@ import { Icon } from '../shared/ui/Icon';
 import { DemoBanner, useToast } from '../shared/ui/Feedback';
 import { ContactButtons, useContacts } from '../shared/ui/Contact';
 import { AuthCard } from './auth';
-import { useHashRoute, useLocalPref, useNewCallAlert, useRecentCalls, useWatch } from './hooks';
+import { alertStatus, enableAlerts, useHashRoute, useLocalPref, useNewCallAlert, useRecentCalls, useWatch } from './hooks';
 import Dashboard from './pages/Dashboard';
 import Tables from './pages/Tables';
 import Menu from './pages/Menu';
@@ -166,6 +166,7 @@ export default function AdminApp({ user, admin }) {
               <a href={`${BASE}plataforma/`}>Voltar para a plataforma</a>
             </div>
           )}
+          {!admin.support && <AlertBanner soundOn={soundOn} />}
           {err && (
             <div className="banner banner-error" role="alert">
               <Icon name="alert" size={18} /> {err.message || 'Erro de conexão.'}
@@ -205,5 +206,30 @@ function AccessLost({ user, brandName, paused }) {
         </button>
       </div>
     </AuthCard>
+  );
+}
+
+/** Pede para liberar o som e as notificações do computador (o navegador exige um clique). */
+function AlertBanner({ soundOn }) {
+  const [st, setSt] = useState(alertStatus);
+  useEffect(() => {
+    const t = setInterval(() => setSt(alertStatus()), 1500);
+    return () => clearInterval(t);
+  }, []);
+  const needNotif = st.notif === 'default';
+  const needSound = soundOn && st.sound !== 'running';
+  if (!needNotif && !needSound) return null;
+  return (
+    <div className="banner banner-alert" role="note">
+      <span>
+        <Icon name="bell" size={18} />
+        <span>
+          <strong>Não perca nenhuma chamada.</strong> Ative o som{needNotif ? ' e as notificações no computador' : ''}: elas aparecem mesmo com a central minimizada.
+        </span>
+      </span>
+      <button className="btn btn-sm btn-dark" onClick={() => enableAlerts().then(setSt)}>
+        Ativar
+      </button>
+    </div>
   );
 }
