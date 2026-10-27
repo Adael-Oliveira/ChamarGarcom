@@ -138,3 +138,60 @@ describe('convite com nome e permissões', () => {
     await assertSucceeds(accept({ displayName: 'Lia', perms: ['mesas'] }));
   });
 });
+
+describe('relógio de atendimento (pareamento por código)', () => {
+  const watch = (uid = 'relogio1') => env.authenticatedContext(uid, { firebase: { sign_in_provider: 'anonymous' } }).firestore();
+  const showCode = (db, code = '123456', uid = 'relogio1') => setDoc(doc(db, `devicePairings/${code}`), { uid, model: 'T-Watch S3', createdAt: serverTimestamp() });
+  const pair = (db, { code = '123456', uid = 'relogio1', ...over } = {}) => {
+    const b = writeBatch(db);
+    b.set(doc(db, `admins/${uid}`), { restaurantId: RID, role: 'staff', email: '', name: 'Relógio', displayName: 'Relógio do dono', perms: [], device: true, pairCode: code, createdAt: serverTimestamp(), ...over });
+    b.delete(doc(db, `devicePairings/${code}`));
+    return b.commit();
+  };
+
+  test('relógio mostra código; responsável conecta; relógio atende e registra no nome dele', async () => {
+    await assertSucceeds(showCode(watch()));
+    await assertSucceeds(pair(owner()));
+    const w = watch();
+    await assertSucceeds(updateDoc(callRef(w), { status: 'VIEWED', viewedAt: serverTimestamp(), viewedBy: 'relogio1', viewedByName: 'Relógio do dono' }));
+  });
+  test('relógio não mexe em mesas nem configurações', async () => {
+    await showCode(watch());
+    await pair(owner());
+    await assertFails(updateDoc(doc(watch(), `restaurants/${RID}/settings/general`), { callsEnabled: false }));
+    await assertFails(updateDoc(doc(watch(), `restaurants/${RID}/tables/${TID}`), { number: 5, token: TOKEN, active: false }));
+  });
+  test('código não pode ser de outro aparelho nem ser reaproveitado', async () => {
+    await assertFails(setDoc(doc(watch(), 'devicePairings/123456'), { uid: 'outro', createdAt: serverTimestamp() }));
+    await assertFails(setDoc(doc(watch(), 'devicePairings/12a456'), { uid: 'relogio1', createdAt: serverTimestamp() }));
+    await showCode(watch());
+    await assertFails(showCode(watch('relogio2'), '123456', 'relogio2')); // já existe
+  });
+  test('só o responsável conecta; equipe e outro restaurante não', async () => {
+    await showCode(watch());
+    await assertFails(pair(bia()));
+    await assertFails(pair(as('outro')));
+  });
+  test('conectado tem que ser o aparelho do código, só atendimento, e consumir o código', async () => {
+    await showCode(watch());
+    await assertFails(pair(owner(), { uid: 'relogio2' }));
+    await assertFails(pair(owner(), { perms: ['config'] }));
+    await assertFails(pair(owner(), { role: 'owner' }));
+    const db = owner();
+    await assertFails(setDoc(doc(db, 'admins/relogio1'), { restaurantId: RID, role: 'staff', email: '', name: 'Relógio', displayName: 'X', perms: [], device: true, pairCode: '123456', createdAt: serverTimestamp() }));
+  });
+  test('código expirado (mais de 15 min) não conecta', async () => {
+    await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), 'devicePairings/123456'), { uid: 'relogio1', createdAt: Timestamp.fromDate(new Date(Date.now() - 16 * 60000)) }));
+    await assertFails(pair(owner()));
+  });
+  test('ninguém se cadastra sozinho como relógio', async () => {
+    await showCode(watch());
+    await assertFails(setDoc(doc(watch(), 'admins/relogio1'), { restaurantId: RID, role: 'staff', email: '', name: 'Relógio', displayName: 'X', perms: [], device: true, pairCode: '123456', createdAt: serverTimestamp() }));
+  });
+  test('responsável remove o relógio e ele perde o acesso', async () => {
+    await showCode(watch());
+    await pair(owner());
+    await assertSucceeds(deleteDoc(doc(owner(), 'admins/relogio1')));
+    await assertFails(updateDoc(callRef(watch()), { status: 'VIEWED', viewedAt: serverTimestamp(), viewedBy: 'relogio1', viewedByName: 'Relógio' }));
+  });
+});

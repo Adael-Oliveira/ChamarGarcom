@@ -345,6 +345,15 @@ const api = {
       else delete a.displayName;
       if (a.role === 'staff') a.perms = cleanPerms(perms);
     }),
+  async pairDevice(rid, code, displayName) {
+    if (String(code || '').replace(/\D/g, '').length !== 6) throw new Error('O código do relógio tem 6 números.');
+    const name = cleanStaffName(displayName);
+    if (!name) throw new Error('Dê um nome para o relógio. Ex.: Relógio do dono.');
+    await delay(300);
+    commit((d) => {
+      d.admins['demo-relogio-' + uid()] = { restaurantId: rid, role: 'staff', email: '', name: 'Relógio', displayName: name, perms: [], device: true, createdAt: Date.now() };
+    });
+  },
   revokeInvite: async (email) => commit((d) => delete d.invites[normalizeEmail(email)]),
   removeMember: async (u) => commit((d) => delete d.admins[u]),
 

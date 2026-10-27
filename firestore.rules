@@ -28,6 +28,7 @@ service cloud.firestore {
     function restaurantPath(rid) { return /databases/$(database)/documents/restaurants/$(rid); }
     function settingsPath(rid) { return /databases/$(database)/documents/restaurants/$(rid)/settings/general; }
     function invitePath(email) { return /databases/$(database)/documents/invites/$(email); }
+    function pairingPath(code) { return /databases/$(database)/documents/devicePairings/$(code); }
     function callPath(rid, id) { return /databases/$(database)/documents/restaurants/$(rid)/calls/$(id); }
     function statePath(rid, id) { return /databases/$(database)/documents/restaurants/$(rid)/tableState/$(id); }
     function settingsOf(rid) { return get(settingsPath(rid)).data; }
@@ -298,7 +299,7 @@ service cloud.firestore {
 
     // ---------- equipe ----------
     function validAdmin(d) {
-      return d.keys().hasOnly(['restaurantId', 'role', 'email', 'name', 'displayName', 'perms', 'createdAt'])
+      return d.keys().hasOnly(['restaurantId', 'role', 'email', 'name', 'displayName', 'perms', 'device', 'pairCode', 'createdAt'])
         && d.restaurantId is string
         && d.role in ['owner', 'staff']
         && d.email is string
@@ -307,12 +308,29 @@ service cloud.firestore {
         && (!('perms' in d) || (d.role == 'staff' && validPerms(d.perms)))
         && d.createdAt == request.time;
     }
+    // relógio: o responsável digita o código que aparece na tela do aparelho
+    // (pareamento com menos de 15 min, consumido no mesmo lote). Entra como
+    // Equipe, só com o atendimento das mesas.
+    function validDevicePairing(uid) {
+      let d = request.resource.data;
+      let pairing = get(pairingPath(d.pairCode)).data;
+      return d.get('device', false) == true
+        && d.pairCode is string
+        && isOwnerOf(d.restaurantId)
+        && d.role == 'staff'
+        && d.get('perms', null) == []
+        && validStaffName(d.get('displayName', null)) && d.get('displayName', null) != null
+        && pairing.uid == uid
+        && request.time < pairing.createdAt + duration.value(15, 'm')
+        && !existsAfter(pairingPath(d.pairCode));
+    }
     match /admins/{uid} {
       // cada um lê o próprio; o restaurante lê a sua equipe (consulta por restaurantId);
       // o dono da plataforma lê todos
       allow get: if signedIn() && (uid == me() || isAdminOf(resource.data.restaurantId));
       allow list: if isPlatformOwner() || isAdminOf(resource.data.restaurantId);
-      allow create: if signedIn() && uid == me() && validAdmin(request.resource.data) && (
+      allow create: if signedIn() && validAdmin(request.resource.data) && ((uid == me()
+        && !request.resource.data.keys().hasAny(['device', 'pairCode']) && (
         // responsável: criado junto com o restaurante (cadastro pela tela)
         (request.resource.data.role == 'owner'
           && !exists(restaurantPath(request.resource.data.restaurantId))
@@ -328,7 +346,7 @@ service cloud.firestore {
           && get(invitePath(myEmail())).data.get('perms', null) == request.resource.data.get('perms', null)
           && get(invitePath(myEmail())).data.get('displayName', null) == request.resource.data.get('displayName', null)
           && !existsAfter(invitePath(myEmail())))
-      );
+      )) || validDevicePairing(uid));
       // o responsável muda o nome de qualquer um da equipe e as permissões de quem é Equipe
       allow update: if signedIn() && isOwnerOf(resource.data.restaurantId)
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'perms'])
@@ -355,6 +373,22 @@ service cloud.firestore {
         && request.resource.data.createdAt == request.time;
       allow update: if false;
       allow delete: if signedIn() && ((emailVerified() && myEmail() == email) || isAdminOf(resource.data.restaurantId));
+    }
+
+    // ---------- pareamento de relógio (id = código de 6 dígitos da tela) ----------
+    match /devicePairings/{code} {
+      allow get: if signedIn();
+      allow list: if false;
+      allow create: if signedIn() && code.matches('^[0-9]{6}$')
+        && request.resource.data.keys().hasOnly(['uid', 'model', 'createdAt'])
+        && request.resource.data.uid == me()
+        && shortText(request.resource.data.get('model', null), 40)
+        && request.resource.data.createdAt == request.time;
+      allow update: if false;
+      // o próprio relógio, o responsável que conecta, ou qualquer um depois que expirou
+      allow delete: if signedIn() && (resource.data.uid == me()
+        || request.time > resource.data.createdAt + duration.value(15, 'm')
+        || (exists(adminDoc()) && get(adminDoc()).data.role == 'owner'));
     }
 
     // todo o resto: negado

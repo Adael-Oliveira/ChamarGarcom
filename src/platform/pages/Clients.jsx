@@ -141,12 +141,12 @@ export default function Clients() {
                       {r.members.length === 0 && <li className="muted small">Ninguém entrou ainda.</li>}
                       {r.members.map((m) => (
                         <li key={m.uid}>
-                          <span className="avatar">{(m.name || m.email || '?')[0]}</span>
+                          <span className="avatar">{(m.displayName || m.name || m.email || '?')[0]}</span>
                           <span className="people-main">
-                            <strong>{m.name || m.email}</strong>
-                            <small>{m.email}</small>
+                            <strong>{m.displayName || m.name || m.email}</strong>
+                            <small>{m.device ? 'Relógio de atendimento' : m.email}</small>
                           </span>
-                          <span className={`pill ${m.role === 'owner' ? 'pill-owner' : ''}`}>{m.role === 'owner' ? 'Responsável' : 'Equipe'}</span>
+                          <span className={`pill ${m.role === 'owner' ? 'pill-owner' : ''}`}>{m.role === 'owner' ? 'Responsável' : m.device ? 'Relógio' : 'Equipe'}</span>
                           {m.uid !== user.uid && (
                             <button className="btn btn-sm btn-ghost btn-danger" onClick={() => setModal({ type: 'remove', r, m })}>
                               Remover

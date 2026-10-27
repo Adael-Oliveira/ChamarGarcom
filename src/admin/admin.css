@@ -1422,6 +1422,11 @@ table.data tr.is-off td {
   grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
   gap: 12px;
 }
+.input-code {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.18em;
+  font-size: 1.15rem;
+}
 .perm-pick {
   border: 0;
   margin: 0;

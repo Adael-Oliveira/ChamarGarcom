@@ -17,6 +17,7 @@ const ROLES = {
 /** Resumo curto do que a pessoa pode fazer. */
 function permsSummary(m) {
   if (m.role === 'owner') return 'Controle total';
+  if (m.device) return 'Relógio · atende as mesas';
   const p = permsOf(m);
   if (!p.length) return 'Só atendimento das mesas';
   return 'Atendimento + ' + PERMS.filter((x) => p.includes(x.id)).map((x) => x.label.split(' ')[0]).join(', ');
@@ -79,8 +80,10 @@ function EditMember({ member, onClose, onSave }) {
           <span>Nome que aparece no painel e nos relatórios</span>
           <input id="edit-name" className="input" maxLength={MAX_STAFF_NAME} placeholder={member.name || 'Ex.: Bia'} value={name} onChange={(e) => setName(e.target.value)} />
         </label>
-        <p className="muted small">Conta Google: {member.email}</p>
-        {staff ? <PermsPicker value={perms} onChange={setPerms} idPrefix="edit" /> : <p className="muted small">Responsável tem controle total do restaurante.</p>}
+        {!member.device && <p className="muted small">Conta Google: {member.email}</p>}
+        {member.device ? (
+          <p className="muted small">Relógio de atendimento: recebe as chamadas e confirma o Visualizado no nome acima.</p>
+        ) : staff ? <PermsPicker value={perms} onChange={setPerms} idPrefix="edit" /> : <p className="muted small">Responsável tem controle total do restaurante.</p>}
       </form>
     </Modal>
   );
@@ -95,6 +98,18 @@ export default function Team() {
   const [perms, setPerms] = useState([]);
   const [confirm, setConfirm] = useState(null);
   const [editing, setEditing] = useState(null);
+  const [pair, setPair] = useState({ code: '', name: '', busy: false });
+
+  const connectWatch = async (e) => {
+    e.preventDefault();
+    setPair((p) => ({ ...p, busy: true }));
+    try {
+      await run(() => api.pairDevice(rid, pair.code, pair.name), `${cleanStaffName(pair.name)} conectado. Ele já recebe as chamadas.`);
+      setPair({ code: '', name: '', busy: false });
+    } catch {
+      setPair((p) => ({ ...p, busy: false }));
+    }
+  };
   const adminLink = `${appUrl()}admin/`;
 
   const inviteText = (i) =>
@@ -176,17 +191,17 @@ export default function Team() {
         <ul className="people">
           {team.data.members.map((m) => (
             <li key={m.uid}>
-              <span className="avatar">{(staffName(m) || '?')[0]}</span>
+              <span className="avatar">{m.device ? <Icon name="watch" size={18} /> : (staffName(m) || '?')[0]}</span>
               <span className="people-main">
                 <strong>
                   {staffName(m) || m.email}
                   {m.uid === user.uid ? ' (você)' : ''}
                 </strong>
                 <small>
-                  {m.email} · {permsSummary(m)}
+                  {m.device ? permsSummary(m) : `${m.email} · ${permsSummary(m)}`}
                 </small>
               </span>
-              <span className={`pill ${m.role === 'owner' ? 'pill-owner' : ''}`}>{ROLES[m.role]?.label || 'Equipe'}</span>
+              <span className={`pill ${m.role === 'owner' ? 'pill-owner' : ''}`}>{m.device ? 'Relógio' : ROLES[m.role]?.label || 'Equipe'}</span>
               <button className="btn btn-sm" onClick={() => setEditing(m)}>
                 <Icon name="edit" size={16} /> Editar
               </button>
@@ -198,6 +213,36 @@ export default function Team() {
             </li>
           ))}
         </ul>
+      </Panel>
+
+      <Panel title="Relógio de atendimento" text="Para quem não fica no caixa: o relógio vibra quando uma mesa chama e o Visualizado é feito no pulso.">
+        <form className="invite-form" onSubmit={connectWatch}>
+          <div className="invite-row">
+            <label className="field" htmlFor="watch-code">
+              <span>Código que aparece no relógio</span>
+              <input
+                id="watch-code"
+                className="input input-code"
+                inputMode="numeric"
+                autoComplete="off"
+                maxLength={7}
+                placeholder="000 000"
+                value={pair.code}
+                onChange={(e) => setPair((p) => ({ ...p, code: e.target.value.replace(/[^\d ]/g, '') }))}
+              />
+            </label>
+            <label className="field" htmlFor="watch-name">
+              <span>Nome nos relatórios</span>
+              <input id="watch-name" className="input" maxLength={MAX_STAFF_NAME} placeholder="Ex.: Relógio do dono" value={pair.name} onChange={(e) => setPair((p) => ({ ...p, name: e.target.value }))} />
+            </label>
+          </div>
+          <div>
+            <button className="btn btn-primary" disabled={pair.busy}>
+              <Icon name="watch" size={16} /> {pair.busy ? 'Conectando…' : 'Conectar relógio'}
+            </button>
+          </div>
+        </form>
+        <p className="muted small invite-help">Ligue o relógio no Wi-Fi do restaurante: ele mostra um código de 6 números que vale 15 minutos. O relógio entra só com o atendimento das mesas. Para desconectar, use Remover na lista acima.</p>
       </Panel>
 
       {team.data.invites.length > 0 && (

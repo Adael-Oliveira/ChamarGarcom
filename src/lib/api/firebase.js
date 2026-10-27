@@ -89,6 +89,7 @@ const P = {
   admin: (uid) => doc(db, 'admins', uid),
   admins: () => collection(db, 'admins'),
   invite: (email) => doc(db, 'invites', email),
+  pairing: (code) => doc(db, 'devicePairings', code),
   invites: () => collection(db, 'invites'),
   link: (token) => doc(db, 'tableLinks', token),
   restaurant: (rid) => doc(db, 'restaurants', rid),
@@ -408,6 +409,21 @@ const api = {
     const patch = { displayName: cleanStaffName(displayName) || deleteField() };
     if (member.role === 'staff') patch.perms = cleanPerms(perms);
     return wrap(updateDoc(P.admin(uid), patch));
+  },
+  /** Conecta um relógio: o código aparece na tela do aparelho e vale 15 minutos. */
+  async pairDevice(rid, code, displayName) {
+    const c = String(code || '').replace(/\D/g, '');
+    if (c.length !== 6) throw new Error('O código do relógio tem 6 números.');
+    const name = cleanStaffName(displayName);
+    if (!name) throw new Error('Dê um nome para o relógio. Ex.: Relógio do dono.');
+    const snap = await getDoc(P.pairing(c)).catch((e) => Promise.reject(friendly(e)));
+    const p = snap.data();
+    if (!snap.exists() || !p?.uid) throw new Error('Código não encontrado. Confira o número na tela do relógio.');
+    if (Date.now() - toDate(p.createdAt).getTime() > 14 * 60000) throw new Error('Esse código expirou. Reinicie o relógio para gerar outro.');
+    const b = writeBatch(db);
+    b.set(P.admin(p.uid), { restaurantId: rid, role: 'staff', email: '', name: 'Relógio', displayName: name, perms: [], device: true, pairCode: c, createdAt: serverTimestamp() });
+    b.delete(P.pairing(c));
+    await wrap(b.commit());
   },
   revokeInvite: (email) => wrap(deleteDoc(P.invite(normalizeEmail(email)))),
   removeMember: (uid) => wrap(deleteDoc(P.admin(uid))),
