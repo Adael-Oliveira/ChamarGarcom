@@ -32,6 +32,7 @@ import {
   connectFirestoreEmulator,
   collection,
   deleteDoc,
+  deleteField,
   doc,
   getDoc,
   getDocs,
@@ -47,7 +48,7 @@ import {
   writeBatch,
 } from 'firebase/firestore';
 import { firebaseConfig, useEmulators } from '../env';
-import { CALL_STATUS, DEFAULT_BRAND, DEFAULT_SETTINGS, generateToken, normalizeEmail } from '../../shared/model';
+import { CALL_STATUS, DEFAULT_BRAND, DEFAULT_SETTINGS, cleanPerms, cleanStaffName, generateToken, normalizeEmail } from '../../shared/model';
 
 const config = useEmulators
   ? { apiKey: 'demo-key', authDomain: 'localhost', projectId: 'demo-chamar-garcom', storageBucket: 'demo-chamar-garcom.appspot.com', appId: 'demo' }
@@ -103,6 +104,15 @@ const P = {
 
 const toDate = (t) => (t && typeof t.toDate === 'function' ? t.toDate() : t instanceof Date ? t : null);
 
+function inviteDoc(rid, by, role, displayName, perms) {
+  const r = role === 'owner' ? 'owner' : 'staff';
+  const d = { restaurantId: rid, role: r, createdBy: by, createdAt: serverTimestamp() };
+  const n = cleanStaffName(displayName);
+  if (n) d.displayName = n;
+  if (r === 'staff') d.perms = cleanPerms(perms);
+  return d;
+}
+
 function normCall(snap) {
   const d = snap.data({ serverTimestamps: 'estimate' });
   return {
@@ -113,7 +123,11 @@ function normCall(snap) {
     status: d.status,
     calledAt: toDate(d.calledAt),
     viewedAt: toDate(d.viewedAt),
+    viewedBy: d.viewedBy || null,
+    viewedByName: d.viewedByName || null,
     doneAt: toDate(d.doneAt),
+    doneBy: d.doneBy || null,
+    doneByName: d.doneByName || null,
   };
 }
 
@@ -216,7 +230,10 @@ const api = {
 
   async acceptInvite(user, invite) {
     const b = writeBatch(db);
-    b.set(P.admin(user.uid), { restaurantId: invite.restaurantId, role: invite.role === 'owner' ? 'owner' : 'staff', email: user.email, name: user.name || '', createdAt: serverTimestamp() });
+    const a = { restaurantId: invite.restaurantId, role: invite.role === 'owner' ? 'owner' : 'staff', email: user.email, name: (user.name || '').slice(0, 120), createdAt: serverTimestamp() };
+    if (invite.displayName) a.displayName = invite.displayName;
+    if (Array.isArray(invite.perms)) a.perms = invite.perms;
+    b.set(P.admin(user.uid), a);
     b.delete(P.invite(user.email));
     await wrap(b.commit());
   },
@@ -317,8 +334,11 @@ const api = {
     const s = await wrap(getDocs(q));
     return s.docs.map(normCall);
   },
-  markViewed: (rid, id, uid) => wrap(updateDoc(P.call(rid, id), { status: CALL_STATUS.VIEWED, viewedAt: serverTimestamp(), viewedBy: uid })),
-  markDone: (rid, id) => wrap(updateDoc(P.call(rid, id), { status: CALL_STATUS.DONE, doneAt: serverTimestamp() })),
+  /** Quem clicou fica registrado no relatório (uid + nome no momento do atendimento). */
+  markViewed: (rid, id, who) =>
+    wrap(updateDoc(P.call(rid, id), { status: CALL_STATUS.VIEWED, viewedAt: serverTimestamp(), viewedBy: who.uid, viewedByName: cleanStaffName(who.name) })),
+  markDone: (rid, id, who) =>
+    wrap(updateDoc(P.call(rid, id), { status: CALL_STATUS.DONE, doneAt: serverTimestamp(), doneBy: who.uid, doneByName: cleanStaffName(who.name) })),
 
   // ---------- cardápio ----------
   async uploadMenu(rid, file, previousPath, onProgress) {
@@ -375,13 +395,19 @@ const api = {
       u2();
     };
   },
-  async invite(rid, email, by, role = 'staff') {
+  async invite(rid, email, by, role = 'staff', { displayName, perms } = {}) {
     const e = normalizeEmail(email);
     const existing = await getDoc(P.invite(e)).catch(() => null);
     if (existing?.exists()) throw new Error('Já existe um convite para este e-mail.');
     const b = writeBatch(db);
-    b.set(P.invite(e), { restaurantId: rid, role: role === 'owner' ? 'owner' : 'staff', createdBy: by, createdAt: serverTimestamp() });
+    b.set(P.invite(e), inviteDoc(rid, by, role, displayName, perms));
     await wrap(b.commit());
+  },
+  /** Responsável muda o nome e (para a Equipe) as permissões de um membro. */
+  updateMember(uid, member, { displayName, perms }) {
+    const patch = { displayName: cleanStaffName(displayName) || deleteField() };
+    if (member.role === 'staff') patch.perms = cleanPerms(perms);
+    return wrap(updateDoc(P.admin(uid), patch));
   },
   revokeInvite: (email) => wrap(deleteDoc(P.invite(normalizeEmail(email)))),
   removeMember: (uid) => wrap(deleteDoc(P.admin(uid))),

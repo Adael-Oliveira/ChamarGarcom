@@ -11,6 +11,7 @@ import { Icon } from '../shared/ui/Icon';
 import { ContactButtons, LeadForm, useContacts } from '../shared/ui/Contact';
 import { AuthCard, Login } from './auth';
 import AdminApp from './AdminApp';
+import { PERMS, permsOf } from '../shared/model';
 
 // tema claro/escuro salvo neste navegador
 try {
@@ -82,8 +83,21 @@ function Invite({ user, invite, onDone }) {
       <h1>Você foi convidado</h1>
       <p className="muted">
         <strong>{invite.restaurantName}</strong> convidou <strong>{user.email}</strong> para a central de chamadas como{' '}
-        <strong>{invite.role === 'owner' ? 'Responsável (controle total do restaurante)' : 'Equipe'}</strong>.
+        <strong>{invite.role === 'owner' ? 'Responsável (controle total do restaurante)' : 'Equipe'}</strong>
+        {invite.displayName ? (
+          <>
+            , com o nome <strong>{invite.displayName}</strong>
+          </>
+        ) : null}
+        .
       </p>
+      {invite.role !== 'owner' && (
+        <p className="muted small">
+          Você vai atender as mesas
+          {permsOf(invite).length ? ` e também cuidar de: ${PERMS.filter((p) => permsOf(invite).includes(p.id)).map((p) => p.label.toLowerCase()).join(', ')}` : ''}. Quando clicar em Visualizado, o
+          atendimento fica registrado no seu nome.
+        </p>
+      )}
       <button className="btn btn-dark btn-lg btn-block" onClick={accept} disabled={busy}>
         {busy ? 'Entrando…' : 'Aceitar convite'}
       </button>

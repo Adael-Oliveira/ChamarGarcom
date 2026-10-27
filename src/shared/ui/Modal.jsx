@@ -3,16 +3,19 @@ import { Icon } from './Icon';
 
 export default function Modal({ title, onClose, children, footer, width = 480 }) {
   const ref = useRef(null);
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+  // só na abertura: foca o primeiro campo e devolve o foco ao fechar
   useEffect(() => {
     const prev = document.activeElement;
-    const onKey = (e) => e.key === 'Escape' && onClose();
+    const onKey = (e) => e.key === 'Escape' && closeRef.current();
     window.addEventListener('keydown', onKey);
     ref.current?.querySelector('input, button:not(.modal-x)')?.focus();
     return () => {
       window.removeEventListener('keydown', onKey);
       prev?.focus?.();
     };
-  }, [onClose]);
+  }, []);
   return (
     <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div ref={ref} className="modal" style={{ maxWidth: width }} role="dialog" aria-modal="true" aria-label={title}>

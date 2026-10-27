@@ -66,6 +66,7 @@ function TableTile({ table, call, now, onViewed, onDone, busy }) {
         <span className="tile-dot" aria-hidden="true" />
       </div>
       <span className="tile-state">{STATE_LABEL[st]}</span>
+      {st === 'viewed' && call.viewedByName && <span className="tile-who">por {call.viewedByName}</span>}
       <span className="tile-time">
         {pending ? `há ${fmtDuration(now - call.calledAt)}` : call ? `Última: ${fmtTime(call.calledAt)}` : 'Sem chamadas hoje'}
       </span>
@@ -84,7 +85,8 @@ function TableTile({ table, call, now, onViewed, onDone, busy }) {
 }
 
 export default function Dashboard() {
-  const { rid, user, settings, tables, calls, run, navigate } = useAdmin();
+  const { rid, user, myName, can, settings, tables, calls, run, navigate } = useAdmin();
+  const who = { uid: user.uid, name: myName };
   const now = useNow(1000);
   const [busy, setBusy] = useState(null);
 
@@ -102,8 +104,8 @@ export default function Dashboard() {
     await run(fn).catch(() => {});
     setBusy(null);
   };
-  const viewed = (c) => act(c, () => api.markViewed(rid, c.id, user.uid));
-  const done = (c) => act(c, () => api.markDone(rid, c.id));
+  const viewed = (c) => act(c, () => api.markViewed(rid, c.id, who));
+  const done = (c) => act(c, () => api.markDone(rid, c.id, who));
 
   const known = new Set(tables.data.map((t) => t.id));
   const orphans = queue.filter((c) => !known.has(c.tableId)); // mesa excluída com chamada aberta
@@ -117,11 +119,13 @@ export default function Dashboard() {
           <div className={`live-switch ${settings.callsEnabled ? 'is-on' : 'is-off'}`}>
             <span className="live-dot" aria-hidden="true" />
             <span className="live-text">{settings.callsEnabled ? 'Chamadas ativas' : 'Chamadas desativadas'}</span>
-            <Switch
-              id="calls-enabled"
-              checked={settings.callsEnabled}
-              onChange={(v) => run(() => api.saveSettings(rid, { callsEnabled: v }), v ? 'Chamadas ativadas' : 'Chamadas desativadas').catch(() => {})}
-            />
+            {can('config') && (
+              <Switch
+                id="calls-enabled"
+                checked={settings.callsEnabled}
+                onChange={(v) => run(() => api.saveSettings(rid, { callsEnabled: v }), v ? 'Chamadas ativadas' : 'Chamadas desativadas').catch(() => {})}
+              />
+            )}
           </div>
         }
       />
@@ -165,10 +169,12 @@ export default function Dashboard() {
             </div>
           </div>
           {tables.loading ? null : tables.data.length === 0 ? (
-            <Empty title="Nenhuma mesa cadastrada" text="Cadastre as mesas para gerar os QR Codes.">
-              <button className="btn btn-primary" onClick={() => navigate('mesas')}>
-                <Icon name="plus" /> Cadastrar mesas
-              </button>
+            <Empty title="Nenhuma mesa cadastrada" text={can('mesas') ? 'Cadastre as mesas para gerar os QR Codes.' : 'Peça ao responsável do restaurante para cadastrar as mesas.'}>
+              {can('mesas') && (
+                <button className="btn btn-primary" onClick={() => navigate('mesas')}>
+                  <Icon name="plus" /> Cadastrar mesas
+                </button>
+              )}
             </Empty>
           ) : (
             <div className="tiles">

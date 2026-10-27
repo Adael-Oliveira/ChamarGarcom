@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import api from '../lib/api';
 import { BASE } from '../lib/env';
 import { applyBrand, sanitizeBrand } from '../lib/theme/brand';
-import { DEFAULT_SETTINGS, CALL_STATUS } from '../shared/model';
+import { DEFAULT_SETTINGS, CALL_STATUS, permsOf, staffName } from '../shared/model';
 import BrandMark from '../shared/ui/BrandMark';
 import { Icon } from '../shared/ui/Icon';
 import { DemoBanner, useToast } from '../shared/ui/Feedback';
@@ -22,10 +22,10 @@ export const useAdmin = () => useContext(Ctx);
 
 const NAV = [
   { id: 'painel', label: 'Painel', icon: 'grid', Page: Dashboard },
-  { id: 'mesas', label: 'Mesas', icon: 'table', Page: Tables },
-  { id: 'cardapio', label: 'Cardápio', icon: 'book', Page: Menu },
+  { id: 'mesas', label: 'Mesas', icon: 'table', Page: Tables, perm: 'mesas' },
+  { id: 'cardapio', label: 'Cardápio', icon: 'book', Page: Menu, perm: 'cardapio' },
   { id: 'personalizar', label: 'Personalizar', icon: 'palette', Page: Brand, owner: true },
-  { id: 'relatorios', label: 'Relatórios', icon: 'chart', Page: Reports },
+  { id: 'relatorios', label: 'Relatórios', icon: 'chart', Page: Reports, perm: 'relatorios' },
   { id: 'equipe', label: 'Equipe', icon: 'users', Page: Team, owner: true },
   { id: 'configuracoes', label: 'Configurações', icon: 'gear', Page: Settings },
 ];
@@ -38,7 +38,6 @@ const THEMES = [
 
 export default function AdminApp({ user, admin }) {
   const rid = admin.restaurantId;
-  const isOwner = admin.role === 'owner';
   const toast = useToast();
   const [route, navigate] = useHashRoute('painel');
   const [soundOn, setSoundOn] = useLocalPref('cg:sound', true);
@@ -49,6 +48,13 @@ export default function AdminApp({ user, admin }) {
   const tables = useWatch((ok, err) => api.watchTables(rid, ok, err), [rid], []);
   const calls = useRecentCalls(rid);
   const access = useWatch((ok) => api.watchMyAccess(user.uid, ok), [user.uid], undefined);
+
+  // permissões e nome valem na hora em que o Responsável muda (cadastro acompanhado ao vivo)
+  const me = admin.support || !access.data ? admin : { ...admin, ...access.data };
+  const isOwner = me.role === 'owner';
+  const perms = permsOf(me);
+  const can = (p) => perms.includes(p);
+  const myName = (admin.support ? user.name : staffName(me)) || user.name || user.email;
 
   const brand = useMemo(() => sanitizeBrand(brandState.data || {}), [brandState.data]);
   useEffect(() => applyBrand(brand), [brand]);
@@ -73,7 +79,7 @@ export default function AdminApp({ user, admin }) {
     [toast],
   );
 
-  const nav = NAV.filter((n) => !n.owner || isOwner);
+  const nav = NAV.filter((n) => (!n.owner || isOwner) && (!n.perm || can(n.perm)));
   const current = nav.find((n) => n.id === route) || nav[0];
   const { Page } = current;
   const pending = calls.data.filter((c) => c.status === CALL_STATUS.PENDING).length;
@@ -91,6 +97,8 @@ export default function AdminApp({ user, admin }) {
     user,
     admin,
     isOwner,
+    can,
+    myName,
     brand,
     brandLoading: brandState.loading,
     settings: settings.data,
@@ -141,9 +149,9 @@ export default function AdminApp({ user, admin }) {
               ))}
             </div>
             <div className="side-user">
-              {user.photo ? <img src={user.photo} alt="" referrerPolicy="no-referrer" /> : <span className="avatar">{(user.name || user.email || '?')[0]}</span>}
+              {user.photo ? <img src={user.photo} alt="" referrerPolicy="no-referrer" /> : <span className="avatar">{(myName || '?')[0]}</span>}
               <span>
-                <strong>{user.name || 'Administrador'}</strong>
+                <strong>{myName || 'Administrador'}</strong>
                 <small>{admin.support ? 'Suporte da plataforma' : isOwner ? 'Responsável' : 'Equipe'}</small>
               </span>
               <button className="btn btn-icon btn-ghost" onClick={() => api.signOut()} title="Sair" aria-label="Sair">

@@ -6,12 +6,16 @@
 //  conversam em tempo real. Serve para experimentar a plataforma no
 //  GitHub Pages antes de configurar o Firebase.
 // =====================================================================
-import { CALL_STATUS, DEFAULT_BRAND, DEFAULT_SETTINGS, generateToken, normalizeEmail } from '../../shared/model';
+import { CALL_STATUS, DEFAULT_BRAND, DEFAULT_SETTINGS, cleanPerms, cleanStaffName, generateToken, normalizeEmail } from '../../shared/model';
 
-const KEY = 'chamar-garcom:demo:v2';
+const KEY = 'chamar-garcom:demo:v3';
 const SESSION = 'chamar-garcom:demo:user';
 const RID = 'demo';
 const DEMO_USER = { uid: 'demo-dono', email: 'voce@exemplo.com', name: 'Você (demonstração)', photo: null };
+const STAFF = [
+  { uid: 'demo-bia', email: 'bia@exemplo.com', name: 'Bia' },
+  { uid: 'demo-rafael', email: 'rafael@exemplo.com', name: 'Rafael' },
+];
 
 function safe(storageName) {
   try {
@@ -50,6 +54,7 @@ function seed() {
       reason,
       calledAt,
       viewedAt: viewedAfterSec != null ? calledAt + viewedAfterSec * 1000 : null,
+      ...(viewedAfterSec != null ? { viewedBy: STAFF[calls.length % 2].uid, viewedByName: STAFF[calls.length % 2].name } : {}),
       doneAt: null,
       status: status || (viewedAfterSec != null ? CALL_STATUS.DONE : CALL_STATUS.PENDING),
     };
@@ -67,8 +72,11 @@ function seed() {
 
   return {
     platform: { ownerUid: DEMO_USER.uid, signupOpen: false },
-    admins: { [DEMO_USER.uid]: { restaurantId: RID, role: 'owner', email: DEMO_USER.email, name: DEMO_USER.name, createdAt: now } },
-    invites: { 'garcom@exemplo.com': { restaurantId: RID, role: 'staff', createdBy: DEMO_USER.uid, createdAt: now - 3 * 3600000 } },
+    admins: {
+      [DEMO_USER.uid]: { restaurantId: RID, role: 'owner', email: DEMO_USER.email, name: DEMO_USER.name, createdAt: now },
+      ...Object.fromEntries(STAFF.map((s) => [s.uid, { restaurantId: RID, role: 'staff', email: s.email, name: s.name, displayName: s.name, perms: [], createdAt: now - 86400000 }])),
+    },
+    invites: { 'garcom@exemplo.com': { restaurantId: RID, role: 'staff', displayName: 'Lucas', perms: [], createdBy: DEMO_USER.uid, createdAt: now - 3 * 3600000 } },
     tableLinks,
     restaurants: { [RID]: { name: 'Bistrô do Porto', ownerUid: DEMO_USER.uid } },
     settings: { [RID]: { ...DEFAULT_SETTINGS } },
@@ -280,15 +288,15 @@ const api = {
       .sort((a, b) => b.calledAt - a.calledAt)
       .map(outCall);
   },
-  markViewed: async (rid, id) =>
+  markViewed: async (rid, id, who) =>
     commit((d) => {
       const c = d.calls[rid].find((x) => x.id === id);
-      if (c && c.status === CALL_STATUS.PENDING) Object.assign(c, { status: CALL_STATUS.VIEWED, viewedAt: Date.now() });
+      if (c && c.status === CALL_STATUS.PENDING) Object.assign(c, { status: CALL_STATUS.VIEWED, viewedAt: Date.now(), viewedBy: who?.uid || null, viewedByName: cleanStaffName(who?.name) || null });
     }),
-  markDone: async (rid, id) =>
+  markDone: async (rid, id, who) =>
     commit((d) => {
       const c = d.calls[rid].find((x) => x.id === id);
-      if (c) Object.assign(c, { status: CALL_STATUS.DONE, doneAt: Date.now() });
+      if (c) Object.assign(c, { status: CALL_STATUS.DONE, doneAt: Date.now(), doneBy: who?.uid || null, doneByName: cleanStaffName(who?.name) || null });
     }),
 
   async uploadMenu(rid, file, _prev, onProgress) {
@@ -318,13 +326,25 @@ const api = {
           .map(([email, i]) => ({ email, ...i, createdAt: D(i.createdAt) })),
       }),
     ),
-  async invite(rid, email, by, role = 'staff') {
+  async invite(rid, email, by, role = 'staff', { displayName, perms } = {}) {
     const e = normalizeEmail(email);
     commit((d) => {
       if (d.invites[e]) throw new Error('Já existe um convite para este e-mail.');
-      d.invites[e] = { restaurantId: rid, role: role === 'owner' ? 'owner' : 'staff', createdBy: by, createdAt: Date.now() };
+      const r = role === 'owner' ? 'owner' : 'staff';
+      d.invites[e] = { restaurantId: rid, role: r, createdBy: by, createdAt: Date.now() };
+      if (cleanStaffName(displayName)) d.invites[e].displayName = cleanStaffName(displayName);
+      if (r === 'staff') d.invites[e].perms = cleanPerms(perms);
     });
   },
+  updateMember: async (u, member, { displayName, perms }) =>
+    commit((d) => {
+      const a = d.admins[u];
+      if (!a) return;
+      const n = cleanStaffName(displayName);
+      if (n) a.displayName = n;
+      else delete a.displayName;
+      if (a.role === 'staff') a.perms = cleanPerms(perms);
+    }),
   revokeInvite: async (email) => commit((d) => delete d.invites[normalizeEmail(email)]),
   removeMember: async (u) => commit((d) => delete d.admins[u]),
 

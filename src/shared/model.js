@@ -79,3 +79,39 @@ export function summarize(calls) {
     maxMs: times.length ? Math.max(...times) : null,
   };
 }
+
+// ---------------------------------------------------------------- equipe
+/**
+ * O que um membro da Equipe pode fazer além de atender as mesas.
+ * O Responsável pode tudo. Membros antigos (sem a lista) continuam com tudo.
+ */
+export const PERMS = [
+  { id: 'mesas', label: 'Mesas e QR Codes', text: 'Cadastrar, desativar e imprimir os QR Codes.' },
+  { id: 'cardapio', label: 'Cardápio', text: 'Trocar o PDF ou o link do cardápio.' },
+  { id: 'relatorios', label: 'Relatórios', text: 'Ver o histórico de chamadas e quem atendeu.' },
+  { id: 'config', label: 'Configurações', text: 'Ligar e desligar chamadas, botão de conta e intervalo.' },
+];
+export const PERM_IDS = PERMS.map((p) => p.id);
+export const MAX_STAFF_NAME = 40;
+
+/** Lista de permissões efetiva de um membro (Responsável = todas). */
+export function permsOf(admin) {
+  if (!admin) return [];
+  if (admin.role === 'owner' || admin.support || admin.platformOwner) return PERM_IDS;
+  if (!Array.isArray(admin.perms)) return PERM_IDS; // cadastros anteriores às permissões
+  return PERM_IDS.filter((p) => admin.perms.includes(p));
+}
+
+/** Só as permissões conhecidas, sem repetição e na ordem da lista. */
+export function cleanPerms(list) {
+  return PERM_IDS.filter((p) => (list || []).includes(p));
+}
+
+/** Nome que aparece no painel e nos relatórios. */
+export function staffName(a) {
+  return String(a?.displayName || a?.name || (a?.email || '').split('@')[0] || '').trim().slice(0, MAX_STAFF_NAME);
+}
+
+export function cleanStaffName(v) {
+  return String(v || '').replace(/\s+/g, ' ').trim().slice(0, MAX_STAFF_NAME);
+}
