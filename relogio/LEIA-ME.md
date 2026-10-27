@@ -20,6 +20,8 @@ Você precisa do Google Chrome ou do Edge no computador e de um **cabo USB de da
 2. Segure o botão **BOOT** e aperte o botão lateral por 1 segundo.
 3. Solte o BOOT e tente de novo a partir do passo 3.
 
+**Para atualizar uma versão nova sem perder o Wi-Fi e a conexão com o restaurante:** use o arquivo `…-atualizacao.bin` com **Flash Address** `0x10000`. O arquivo completo (`0x0`) apaga as configurações salvas e serve para a primeira gravação.
+
 ## 2. Primeira vez: Wi-Fi do restaurante
 
 1. Ao ligar, o relógio mostra **Configurar Wi-Fi**.
