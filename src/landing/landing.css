@@ -168,6 +168,113 @@
   margin: 0;
   color: var(--ink-2);
 }
+.lp-plans {
+  padding: 48px 0 64px;
+  border-top: 1px solid var(--line);
+  scroll-margin-top: 16px;
+}
+.lp-plans h2 {
+  font-family: var(--display);
+  font-size: clamp(1.8rem, 3.6vw, 2.6rem);
+  letter-spacing: -0.03em;
+  line-height: 1.02;
+  margin: 0 0 10px;
+}
+.lp-plans-sub {
+  color: var(--ink-2);
+  font-size: 1.05rem;
+  margin: 0 0 26px;
+  max-width: 62ch;
+}
+.lp-plan-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  align-items: stretch;
+}
+.lp-plan {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 26px;
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  border: 1px solid var(--line);
+}
+.lp-plan.is-hl {
+  background: #15171c;
+  color: #fbf8f2;
+  border-color: #15171c;
+  box-shadow: var(--shadow-lg);
+}
+.lp-plan h3 {
+  margin: 0;
+  font-size: 0.95rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+.lp-plan.is-hl h3 {
+  color: #ffb020;
+}
+.lp-plan-price {
+  margin: 0;
+  font-family: var(--display);
+  font-size: clamp(2.3rem, 4.6vw, 3rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.lp-plan-price span {
+  font-size: 0.5em;
+  vertical-align: 0.6em;
+  letter-spacing: 0;
+}
+.lp-plan-price small {
+  font-family: var(--font, inherit);
+  font-size: 0.36em;
+  font-weight: 600;
+  letter-spacing: 0;
+  opacity: 0.7;
+  margin-left: 4px;
+}
+.lp-plan ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+  flex: 1;
+}
+.lp-plan li {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-weight: 600;
+}
+.lp-plan li svg {
+  color: var(--ok);
+}
+.lp-plan.is-hl li svg {
+  color: #7ee2a0;
+}
+.btn-primary-amber {
+  background: #ffb020;
+  color: #15171c;
+  border-color: #ffb020;
+}
+.btn-primary-amber:hover {
+  background: #ffc14d;
+}
+.lp-setup {
+  margin: 20px 0 0;
+  padding: 16px 20px;
+  border-radius: var(--r);
+  background: #fff4dc;
+  color: #6b4508;
+  font-size: 1.02rem;
+}
 .lp-nav-actions {
   display: flex;
   gap: 6px;
@@ -250,7 +357,8 @@
     width: 220px;
     height: 440px;
   }
-  .lp-steps ol {
+  .lp-steps ol,
+  .lp-plan-grid {
     grid-template-columns: minmax(0, 1fr);
   }
   .lp-lead {

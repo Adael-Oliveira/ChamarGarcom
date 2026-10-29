@@ -7,10 +7,10 @@ import './landing.css';
 import { isDemo } from '../lib/api';
 import { BASE } from '../lib/env';
 import PlatformMark, { Wordmark } from '../shared/ui/PlatformMark';
-import { PLATFORM_TAGLINE } from '../shared/platform';
+import { PLANS, PLATFORM_TAGLINE, SETUP_FEE } from '../shared/platform';
 import { Icon } from '../shared/ui/Icon';
 import TableView from '../client/TableView';
-import { ContactButtons, LeadForm, useContacts } from '../shared/ui/Contact';
+import { ContactButtons, LeadForm, useContacts, waLink } from '../shared/ui/Contact';
 
 // Link antigo no formato /?id=TOKEN → página da mesa
 const legacy = new URLSearchParams(location.search).get('id');
@@ -19,9 +19,42 @@ if (legacy) location.replace(`${BASE}mesa.html?id=${encodeURIComponent(legacy)}`
 const SAMPLE = { name: 'Cantina da Praça', tagline: 'Massas frescas todos os dias', primary: '#C2410C', accent: '#FDBA74', style: 'moderno', logo: null };
 const SAMPLE2 = { name: 'Bistrô do Porto', tagline: 'Cozinha de mar, mesa de casa', primary: '#0B5B73', accent: '#5EEAD4', style: 'classico', logo: null };
 
-/** Leva ao formulário "Quero minha ferramenta" e já coloca o cursor no nome. */
-function focusLead() {
-  setTimeout(() => document.querySelector('#quero input')?.focus({ preventScroll: true }), 500);
+/** Planos e preços; cada "Quero saber mais" abre o WhatsApp da plataforma já com o nome do plano. */
+function Plans({ whatsapp }) {
+  const link = (p) => (whatsapp ? waLink(whatsapp, `Olá! Quero saber mais sobre o plano ${p.name} do Acenai (até ${p.tables} mesas).`) : '#quero');
+  return (
+    <section className="lp-plans" id="planos" aria-labelledby="planos-t">
+      <h2 id="planos-t">Planos</h2>
+      <p className="lp-plans-sub">Escolha pelo tamanho do seu salão. Em todos: página da mesa com a sua marca, painel de atendimento com alerta sonoro e relatórios.</p>
+      <div className="lp-plan-grid">
+        {PLANS.map((p) => (
+          <article key={p.id} className={`lp-plan ${p.highlight ? 'is-hl' : ''}`}>
+            <h3>{p.name}</h3>
+            <p className="lp-plan-price">
+              <span>R$</span> {p.price}
+              <small>/mês</small>
+            </p>
+            <ul>
+              <li>
+                <Icon name="check" size={18} /> Até {p.tables} mesas
+              </li>
+              {(p.extras || []).map((x) => (
+                <li key={x}>
+                  <Icon name="check" size={18} /> {x}
+                </li>
+              ))}
+            </ul>
+            <a className={`btn btn-lg btn-block ${p.highlight ? 'btn-primary-amber' : 'btn-wa'}`} href={link(p)} target={whatsapp ? '_blank' : undefined} rel="noopener noreferrer">
+              <Icon name="whatsapp" size={18} /> Quero saber mais
+            </a>
+          </article>
+        ))}
+      </div>
+      <p className="lp-setup">
+        Taxa de implantação: <strong>R$ {SETUP_FEE}</strong> · pagamento único
+      </p>
+    </section>
+  );
 }
 
 function Landing() {
@@ -33,6 +66,9 @@ function Landing() {
           <PlatformMark size={30} /> <Wordmark />
         </a>
         <nav className="lp-nav-actions" aria-label="Acesso">
+          <a className="btn btn-ghost" href="#planos">
+            Planos
+          </a>
           <a className="btn btn-ghost" href="#quero">
             Quero minha ferramenta
           </a>
@@ -46,15 +82,15 @@ function Landing() {
         <div className="lp-copy">
           <h1>O cliente chama pela mesa. A equipe vê na hora.</h1>
           <p>
-            Um QR Code em cada mesa. O cliente toca em <strong>Chamar garçom</strong> ou <strong>Pedir a conta</strong> no próprio celular, sem baixar aplicativo e sem cadastro. A chamada aparece no
+            Uma plaquinha com QR Code e NFC em cada mesa. O cliente toca em <strong>Chamar garçom</strong> ou <strong>Pedir a conta</strong> no próprio celular, sem baixar aplicativo e sem cadastro. A chamada aparece no
             caixa com som, e o cliente vê quando alguém está a caminho.
           </p>
           <div className="lp-ctas">
             <a className="btn btn-dark btn-lg" href="#quero">
               Quero minha ferramenta <Icon name="arrowRight" size={18} />
             </a>
-            <a className="btn btn-lg" href="#quero" onClick={focusLead}>
-              <Icon name="phone" size={18} /> Quero uma demonstração
+            <a className="btn btn-lg" href="#planos">
+              Conheça os planos
             </a>
           </div>
           <ul className="lp-facts">
@@ -89,7 +125,7 @@ function Landing() {
           </li>
           <li>
             <h3>O cliente toca no celular</h3>
-            <p>Ele aponta a câmera, abre a página da mesa e chama. Ali também vê o cardápio.</p>
+            <p>Ele aponta a câmera ou aproxima o celular (NFC), abre a página da mesa e chama. Sem aplicativo e sem cadastro.</p>
           </li>
           <li>
             <h3>A equipe responde</h3>
@@ -97,6 +133,8 @@ function Landing() {
           </li>
         </ol>
       </section>
+
+      <Plans whatsapp={contacts?.whatsapp} />
 
       <section className="lp-lead" id="quero" aria-labelledby="quero-t">
         <div className="lp-lead-copy">
