@@ -46,7 +46,7 @@ export default function Leads() {
         <p className="muted">Carregando…</p>
       ) : shown.length === 0 ? (
         <Panel>
-          <Empty title="Nenhum interessado aqui" text="Os pedidos feitos em “Quero minha ferramenta” aparecem nesta lista na hora." />
+          <Empty title="Nenhum interessado aqui" text="Os pedidos feitos em “Quero uma demonstração” aparecem nesta lista na hora." />
         </Panel>
       ) : (
         <ul className="clients">

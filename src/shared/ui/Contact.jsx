@@ -49,7 +49,7 @@ export function ContactButtons({ contacts, text = 'Olá! Tenho interesse no Acen
 
 const onlyDigits = (v) => v.replace(/\D/g, '');
 
-/** Formulário "Quero minha ferramenta": o pedido chega em Plataforma → Interessados. */
+/** Formulário "Quero uma demonstração": o pedido chega em Plataforma → Interessados. */
 export function LeadForm({ initial = {}, onSent, compact }) {
   const [f, setF] = useState({ name: initial.name || '', restaurant: '', city: '', phone: '', email: initial.email || '', message: '' });
   const [busy, setBusy] = useState(false);
@@ -131,7 +131,7 @@ export function LeadForm({ initial = {}, onSent, compact }) {
       </label>
       <div className="lead-wide">
         <button className="btn btn-dark btn-lg btn-block" disabled={busy}>
-          {busy ? 'Enviando…' : 'Quero minha ferramenta'}
+          {busy ? 'Enviando…' : 'Quero uma demonstração'}
         </button>
         {error && <p className="field-error">{error}</p>}
         <p className="lead-privacy">Usamos seus dados só para falar com você sobre a ferramenta. Nada é compartilhado.</p>

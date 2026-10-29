@@ -64,7 +64,7 @@ export default function Contacts() {
                 {saved ? 'Salvar contatos' : 'Publicar contatos'}
               </button>
             </div>
-            {!saved && <p className="muted small">Ainda não publicado: até salvar, os visitantes só veem o formulário “Quero minha ferramenta”.</p>}
+            {!saved && <p className="muted small">Ainda não publicado: até salvar, os visitantes só veem o formulário “Quero uma demonstração”.</p>}
           </form>
         </Panel>
 

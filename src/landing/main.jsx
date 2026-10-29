@@ -70,7 +70,7 @@ function Landing() {
             Planos
           </a>
           <a className="btn btn-ghost" href="#quero">
-            Quero minha ferramenta
+            Quero uma demonstração
           </a>
           <a className="btn btn-dark" href={`${BASE}admin/`}>
             Login do cliente
@@ -87,7 +87,7 @@ function Landing() {
           </p>
           <div className="lp-ctas">
             <a className="btn btn-dark btn-lg" href="#quero">
-              Quero minha ferramenta <Icon name="arrowRight" size={18} />
+              Quero uma demonstração <Icon name="arrowRight" size={18} />
             </a>
             <a className="btn btn-lg" href="#planos">
               Conheça os planos
@@ -138,8 +138,8 @@ function Landing() {
 
       <section className="lp-lead" id="quero" aria-labelledby="quero-t">
         <div className="lp-lead-copy">
-          <h2 id="quero-t">Quero minha ferramenta</h2>
-          <p>Deixe seu contato e liberamos a central do seu restaurante, já com o seu logo e as suas cores. Você só precisa de uma conta Google.</p>
+          <h2 id="quero-t">Quero uma demonstração</h2>
+          <p>Deixe seu contato e combinamos uma demonstração no seu restaurante, já com o seu logo e as suas cores.</p>
           <ul className="lp-lead-points">
             <li>
               <Icon name="check" size={18} /> Configuração junto com você
@@ -163,7 +163,7 @@ function Landing() {
           <Wordmark /> · {PLATFORM_TAGLINE}
         </span>
         <span className="lp-foot-links">
-          <a href="#quero">Quero minha ferramenta</a>
+          <a href="#quero">Quero uma demonstração</a>
           <a href={`${BASE}admin/`}>Login do cliente</a>
           {isDemo && <a href={`${BASE}admin/`}>Demonstração</a>}
         </span>

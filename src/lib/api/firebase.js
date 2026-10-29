@@ -5,7 +5,7 @@
 //  invites/{email}                      → convites pendentes para a equipe
 //  platform/config                      → dono da plataforma e se novos cadastros estão abertos
 //  platform/public                      → contatos do dono da plataforma (público)
-//  leads/{id}                           → interessados ("Quero minha ferramenta")
+//  leads/{id}                           → interessados ("Quero uma demonstração")
 //  tableLinks/{token}                   → token do QR → mesa (público, só "get")
 //  restaurants/{rid}                    → restaurante {name, ownerUid}
 //  restaurants/{rid}/settings/general   → chamadas on/off, intervalo, cardápio (público)
