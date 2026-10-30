@@ -9,3 +9,10 @@ export const PLANS = [
   { id: 'avancado', name: 'Avançado', price: '249,90', tables: 60, extras: ['Cardápio'] },
 ];
 export const SETUP_FEE = '297,00';
+
+export const planById = (id) => PLANS.find((p) => p.id === id) || null;
+/** Limite de mesas do plano; null = restaurante sem plano definido (sem limite). */
+export const planTables = (id) => planById(id)?.tables ?? null;
+/** Cardápio: só no Avançado (e nos restaurantes sem plano definido). */
+export const planHasMenu = (id) => !id || id === 'avancado';
+export const planLimitMessage = (id) => `O plano ${planById(id)?.name || ''} permite até ${planTables(id)} mesas. Fale com a gente para ampliar.`;

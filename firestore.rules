@@ -68,6 +68,16 @@ service cloud.firestore {
 
     function shortText(v, max) { return v == null || (v is string && v.size() <= max); }
 
+    // ---------- planos ----------
+    // Sem 'plan' = restaurante anterior aos planos: sem limite de mesas e com cardápio.
+    function validPlan(p) { return p == null || p in ['essencial', 'profissional', 'avancado']; }
+    function planLimit(p) { return p == 'essencial' ? 10 : (p == 'profissional' ? 30 : 60); }
+    function menuAllowed(rid) {
+      let p = getAfter(restaurantPath(rid)).data.get('plan', null);
+      return p == null || p == 'avancado';
+    }
+    function tablePath(rid, id) { return /databases/$(database)/documents/restaurants/$(rid)/tables/$(id); }
+
     // ---------- plataforma ----------
     // Criado uma única vez, pela primeira pessoa que entra (vira dona da plataforma).
     match /platform/config {
@@ -124,7 +134,9 @@ service cloud.firestore {
       allow create: if
         // 1) dono da plataforma cria o restaurante de um cliente
         (isPlatformOwner()
-          && request.resource.data.keys().hasOnly(['name', 'ownerUid', 'ownerEmail', 'createdAt', 'createdBy', 'suspended', 'notes'])
+          && request.resource.data.keys().hasOnly(['name', 'ownerUid', 'ownerEmail', 'createdAt', 'createdBy', 'suspended', 'notes', 'plan', 'tableCount'])
+          && validPlan(request.resource.data.get('plan', null))
+          && request.resource.data.get('tableCount', 0) == 0
           && request.resource.data.name is string
           && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 80
           && request.resource.data.createdBy == me()
@@ -146,10 +158,25 @@ service cloud.firestore {
           && (getAfter(platformPath()).data.ownerUid == me() || get(platformPath()).data.signupOpen == true));
       allow update: if
         (isPlatformOwner()
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'suspended', 'notes', 'ownerEmail'])
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'suspended', 'notes', 'ownerEmail', 'plan', 'tableCount', 'tableOp'])
           && request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 80
           && request.resource.data.get('suspended', false) is bool
-          && shortText(request.resource.data.get('notes', null), 400))
+          && shortText(request.resource.data.get('notes', null), 400)
+          && validPlan(request.resource.data.get('plan', null))
+          && request.resource.data.get('tableCount', 0) is int && request.resource.data.get('tableCount', 0) >= 0)
+        ||
+        // contador de mesas do plano: anda junto com a criação/exclusão da mesa (mesmo lote)
+        (can(rid, 'mesas')
+          && resource.data.get('plan', null) != null
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['tableCount', 'tableOp'])
+          && request.resource.data.tableOp is string && request.resource.data.tableOp.size() > 0
+          && ((request.resource.data.tableCount == resource.data.get('tableCount', 0) + 1
+                && request.resource.data.tableCount <= planLimit(resource.data.plan)
+                && existsAfter(tablePath(rid, request.resource.data.tableOp))
+                && !exists(tablePath(rid, request.resource.data.tableOp)))
+            || (request.resource.data.tableCount == resource.data.get('tableCount', 0) - 1
+                && !existsAfter(tablePath(rid, request.resource.data.tableOp))
+                && exists(tablePath(rid, request.resource.data.tableOp)))))
         ||
         (isOwnerOf(rid)
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name'])
@@ -181,7 +208,8 @@ service cloud.firestore {
       // quem mexe no cardápio precisa de 'cardapio'; nas regras de chamada, de 'config'
       function settingsPermsOk() {
         let changed = request.resource.data.diff(resource.data).affectedKeys();
-        return (!changed.hasAny(['menuUrl', 'menuFileName', 'menuPath', 'menuUpdatedAt']) || can(rid, 'cardapio'))
+        return (!changed.hasAny(['menuUrl', 'menuFileName', 'menuPath', 'menuUpdatedAt'])
+              || (can(rid, 'cardapio') && (menuAllowed(rid) || request.resource.data.get('menuUrl', null) == null)))
           && (!changed.hasAny(['callsEnabled', 'billEnabled', 'cooldownMinutes']) || can(rid, 'config'));
       }
       match /settings/{docId} {
@@ -189,6 +217,7 @@ service cloud.firestore {
         allow list: if isAdminOf(rid);
         // só o dono da plataforma suspende/reativa um restaurante
         allow create: if (docId == 'general' && can(rid, 'config') && validGeneral(request.resource.data)
+              && (menuAllowed(rid) || request.resource.data.get('menuUrl', null) == null)
               && (request.resource.data.get('suspended', false) == false || isPlatformOwner()))
           || (docId == 'brand' && isOwnerOf(rid) && validBrand(request.resource.data));
         allow update: if (docId == 'general' && isAdminOf(rid) && validGeneral(request.resource.data) && settingsPermsOk()
@@ -205,10 +234,19 @@ service cloud.firestore {
           && d.token is string && d.token.size() >= 16
           && d.active is bool;
       }
+      // com plano: criar/excluir mesa exige atualizar o contador no mesmo lote
+      function tableCounted(tableId, d) {
+        let after = getAfter(restaurantPath(rid)).data;
+        return after.get('plan', null) == null
+          || (after.get('tableOp', '') == tableId
+              && after.get('tableCount', 0) == get(restaurantPath(rid)).data.get('tableCount', 0) + d);
+      }
       match /tables/{tableId} {
         allow read: if isAdminOf(rid);
-        allow delete: if can(rid, 'mesas');
-        allow create, update: if can(rid, 'mesas') && validTable(request.resource.data);
+        // o dono da plataforma apaga tudo ao excluir um restaurante
+        allow delete: if isPlatformOwner() || (can(rid, 'mesas') && tableCounted(tableId, -1));
+        allow create: if can(rid, 'mesas') && validTable(request.resource.data) && tableCounted(tableId, 1);
+        allow update: if can(rid, 'mesas') && validTable(request.resource.data);
       }
 
       // ----- estado da mesa: última chamada (o intervalo é conferido aqui) -----

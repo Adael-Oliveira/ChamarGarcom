@@ -6,6 +6,7 @@
 //  conversam em tempo real. Serve para experimentar a plataforma no
 //  GitHub Pages antes de configurar o Firebase.
 // =====================================================================
+import { planHasMenu, planLimitMessage, planTables } from '../../shared/platform';
 import { CALL_STATUS, DEFAULT_BRAND, DEFAULT_SETTINGS, cleanPerms, cleanStaffName, generateToken, normalizeEmail } from '../../shared/model';
 
 const KEY = 'chamar-garcom:demo:v3';
@@ -240,9 +241,12 @@ const api = {
     }),
 
   watchTables: (rid, cb) => watch((d) => cb([...(d.tables[rid] || [])].sort((a, b) => a.number - b.number))),
+  watchRestaurant: (rid, cb) => watch((d) => cb(d.restaurants[rid] ? { id: rid, ...d.restaurants[rid], tableCount: d.tables[rid]?.length || 0 } : null)),
   async createTable(rid, number) {
     commit((d) => {
       if (d.tables[rid].some((t) => t.number === number)) throw new Error(`A mesa ${number} já existe.`);
+      const plan = d.restaurants[rid]?.plan;
+      if (plan && d.tables[rid].length >= planTables(plan)) throw new Error(planLimitMessage(plan));
       const id = uid();
       const token = generateToken();
       d.tables[rid].push({ id, number, token, active: true, createdAt: Date.now() });
@@ -377,13 +381,13 @@ const api = {
           .sort((a, b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0)),
       ),
     ),
-  async createClient({ name, ownerEmail, notes = '' }, by) {
+  async createClient({ name, ownerEmail, notes = '', plan = null }, by) {
     const email = normalizeEmail(ownerEmail);
     return commit((d) => {
       if (d.invites[email]) throw new Error('Esse e-mail já tem um convite pendente.');
       if (Object.values(d.admins).some((a) => a.email === email)) throw new Error('Esse e-mail já tem acesso a um restaurante.');
       const rid = 'r' + uid();
-      d.restaurants[rid] = { name, ownerUid: null, ownerEmail: email, createdAt: Date.now(), createdBy: by, suspended: false, notes };
+      d.restaurants[rid] = { name, ownerUid: null, ownerEmail: email, createdAt: Date.now(), createdBy: by, suspended: false, notes, ...(plan ? { plan } : {}) };
       d.settings[rid] = { ...DEFAULT_SETTINGS, suspended: false };
       d.brand[rid] = { ...DEFAULT_BRAND, name };
       d.tables[rid] = [];
@@ -393,8 +397,13 @@ const api = {
       return rid;
     });
   },
-  updateClient: async (rid, { name, notes }) =>
+  updateClient: async (rid, { name, notes, plan }) =>
     commit((d) => {
+      if (plan !== undefined) {
+        if (plan) d.restaurants[rid].plan = plan;
+        else delete d.restaurants[rid].plan;
+        if (!planHasMenu(plan)) Object.assign(d.settings[rid], { menuUrl: null, menuFileName: null, menuPath: null, menuUpdatedAt: Date.now() });
+      }
       if (name) {
         d.restaurants[rid].name = name;
         d.brand[rid].name = name;

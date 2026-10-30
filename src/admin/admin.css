@@ -1534,3 +1534,34 @@ table.data tr.is-off td {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* ---------- plano do restaurante ---------- */
+.plan-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  margin-bottom: 14px;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--surface);
+  color: var(--ink-2);
+  font-size: 14px;
+}
+.plan-bar strong { color: var(--ink); }
+.plan-meter {
+  flex: 1 1 120px;
+  max-width: 240px;
+  height: 8px;
+  border-radius: 99px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  overflow: hidden;
+}
+.plan-meter i { display: block; height: 100%; background: var(--ok); border-radius: 99px; }
+.plan-bar.is-full { border-color: var(--wait-line); background: var(--wait-bg); color: var(--wait-ink); }
+.plan-bar.is-full .plan-meter i { background: var(--wait); }
+.plan-note { font-weight: 600; }
+.plan-lock { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; max-width: 560px; }
+.plan-lock p { margin: 0; color: var(--ink-2); }

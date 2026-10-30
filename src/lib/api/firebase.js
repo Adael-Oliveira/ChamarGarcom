@@ -36,6 +36,7 @@ import {
   doc,
   getDoc,
   getDocs,
+  increment,
   limit,
   onSnapshot,
   orderBy,
@@ -48,6 +49,7 @@ import {
   writeBatch,
 } from 'firebase/firestore';
 import { firebaseConfig, useEmulators } from '../env';
+import { planHasMenu, planLimitMessage, planTables } from '../../shared/platform';
 import { CALL_STATUS, DEFAULT_BRAND, DEFAULT_SETTINGS, cleanPerms, cleanStaffName, generateToken, normalizeEmail } from '../../shared/model';
 
 const config = useEmulators
@@ -279,12 +281,19 @@ const api = {
       (e) => onError?.(friendly(e)),
     );
   },
+  watchRestaurant(rid, cb, onError) {
+    return onSnapshot(P.restaurant(rid), (s) => cb(s.exists() ? { id: s.id, ...s.data() } : null), (e) => onError?.(friendly(e)));
+  },
   async createTable(rid, number) {
+    const r = (await getDoc(P.restaurant(rid)).catch(() => null))?.data() || {};
+    const limit = planTables(r.plan);
+    if (limit != null && (r.tableCount || 0) >= limit) throw new Error(planLimitMessage(r.plan));
     const ref = doc(P.tables(rid));
     const token = generateToken();
     const b = writeBatch(db);
     b.set(ref, { number, token, active: true, createdAt: serverTimestamp() });
     b.set(P.link(token), { restaurantId: rid, tableId: ref.id, number, active: true });
+    if (r.plan) b.update(P.restaurant(rid), { tableCount: increment(1), tableOp: ref.id });
     await wrap(b.commit());
   },
   async updateTableNumber(rid, t, number) {
@@ -308,8 +317,10 @@ const api = {
     await wrap(b.commit());
   },
   async deleteTable(rid, t) {
+    const r = (await getDoc(P.restaurant(rid)).catch(() => null))?.data() || {};
     const b = writeBatch(db);
     b.delete(P.table(rid, t.id));
+    if (r.plan) b.update(P.restaurant(rid), { tableCount: increment(-1), tableOp: t.id });
     b.delete(P.link(t.token));
     b.delete(P.state(rid, t.id));
     await wrap(b.commit());
@@ -478,7 +489,7 @@ const api = {
     };
   },
   /** Cria o restaurante de um cliente e já deixa o convite de Responsável para o e-mail dele. */
-  async createClient({ name, ownerEmail, notes = '' }, by) {
+  async createClient({ name, ownerEmail, notes = '', plan = null }, by) {
     const email = normalizeEmail(ownerEmail);
     const inv = await getDoc(P.invite(email)).catch(() => null);
     if (inv?.exists()) throw new Error('Esse e-mail já tem um convite pendente.');
@@ -486,21 +497,39 @@ const api = {
     if (taken && !taken.empty) throw new Error('Esse e-mail já tem acesso a um restaurante.');
     const rid = doc(P.restaurants()).id;
     const b = writeBatch(db);
-    b.set(P.restaurant(rid), { name, ownerUid: null, ownerEmail: email, createdAt: serverTimestamp(), createdBy: by, suspended: false, notes: notes || '' });
+    const r = { name, ownerUid: null, ownerEmail: email, createdAt: serverTimestamp(), createdBy: by, suspended: false, notes: notes || '' };
+    if (plan) Object.assign(r, { plan, tableCount: 0 });
+    b.set(P.restaurant(rid), r);
     b.set(P.settings(rid), { ...DEFAULT_SETTINGS, suspended: false, updatedAt: serverTimestamp() });
     b.set(P.brand(rid), { ...DEFAULT_BRAND, name, updatedAt: serverTimestamp() });
     b.set(P.invite(email), { restaurantId: rid, role: 'owner', createdBy: by, createdAt: serverTimestamp() });
     await wrap(b.commit());
     return rid;
   },
-  async updateClient(rid, { name, notes }) {
+  /** plan: undefined = não muda; null = sem plano (sem limite). */
+  async updateClient(rid, { name, notes, plan }) {
     const b = writeBatch(db);
     const patch = {};
     if (name) patch.name = name;
     if (notes != null) patch.notes = notes;
+    let oldMenuPath = null;
+    if (plan !== undefined) {
+      // o contador começa com as mesas que o restaurante já tem
+      const tables = await wrap(getDocs(P.tables(rid)));
+      patch.plan = plan || deleteField();
+      patch.tableCount = tables.size;
+      if (!planHasMenu(plan)) {
+        const s = (await getDoc(P.settings(rid)).catch(() => null))?.data();
+        if (s?.menuUrl || s?.menuPath) {
+          oldMenuPath = s.menuPath || null;
+          b.update(P.settings(rid), { menuUrl: null, menuFileName: null, menuPath: null, menuUpdatedAt: serverTimestamp(), updatedAt: serverTimestamp() });
+        }
+      }
+    }
     b.update(P.restaurant(rid), patch);
     if (name) b.update(P.brand(rid), { name, updatedAt: serverTimestamp() });
     await wrap(b.commit());
+    if (oldMenuPath) storage().then(({ m, s }) => m.deleteObject(m.ref(s, oldMenuPath))).catch(() => {});
   },
   async setSuspended(rid, suspended) {
     const b = writeBatch(db);

@@ -4,8 +4,39 @@ import { useAdmin } from '../AdminApp';
 import { fmtDateTime } from '../../shared/format';
 import { Icon } from '../../shared/ui/Icon';
 import { PageHeader, Panel } from '../components/Page';
+import { ContactButtons, useContacts } from '../../shared/ui/Contact';
+import { planById, planHasMenu } from '../../shared/platform';
+
+/** Planos sem cardápio: a página mostra o convite para mudar de plano. */
+function MenuLocked({ plan, brandName }) {
+  const contacts = useContacts();
+  return (
+    <>
+      <PageHeader title="Cardápio" text="O botão “Ver cardápio” da página da mesa abre o arquivo ou o link do restaurante." />
+      <Panel>
+        <div className="plan-lock">
+          <span className="pill">
+            <Icon name="lock" size={14} /> Plano Avançado
+          </span>
+          <h2 style={{ margin: 0 }}>O cardápio na mesa faz parte do plano Avançado</h2>
+          <p>
+            Seu plano atual é o <strong>{planById(plan)?.name}</strong>. No Avançado, o cliente abre o cardápio do restaurante direto pela página da mesa, além de
+            até 60 mesas.
+          </p>
+          <ContactButtons contacts={contacts} text={`Olá! Quero mudar o ${brandName || 'meu restaurante'} para o plano Avançado do Acenai (com cardápio).`} />
+        </div>
+      </Panel>
+    </>
+  );
+}
 
 export default function Menu() {
+  const { plan, brand } = useAdmin();
+  if (!planHasMenu(plan)) return <MenuLocked plan={plan} brandName={brand.name} />;
+  return <MenuEditor />;
+}
+
+function MenuEditor() {
   const { rid, settings: s, run, toast } = useAdmin();
   const input = useRef(null);
   const [file, setFile] = useState(null);

@@ -46,6 +46,8 @@ export default function AdminApp({ user, admin }) {
   const settings = useWatch((ok, err) => api.watchSettings(rid, ok, err), [rid], DEFAULT_SETTINGS);
   const brandState = useWatch((ok, err) => api.watchBrand(rid, ok, err), [rid], null);
   const tables = useWatch((ok, err) => api.watchTables(rid, ok, err), [rid], []);
+  const restaurant = useWatch((ok, err) => api.watchRestaurant(rid, ok, err), [rid], null);
+  const plan = restaurant.data?.plan || null;
   const calls = useRecentCalls(rid);
   const access = useWatch((ok) => api.watchMyAccess(user.uid, ok), [user.uid], undefined);
 
@@ -102,6 +104,7 @@ export default function AdminApp({ user, admin }) {
     brand,
     brandLoading: brandState.loading,
     settings: settings.data,
+    plan,
     tables,
     calls,
     run,

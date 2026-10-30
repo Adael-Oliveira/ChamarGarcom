@@ -3,12 +3,31 @@ import api from '../../lib/api';
 import { appUrl, BASE } from '../../lib/env';
 import { fmtDateTime } from '../../shared/format';
 import { normalizeEmail } from '../../shared/model';
+import { PLANS, planById, planHasMenu } from '../../shared/platform';
 import Modal, { Confirm } from '../../shared/ui/Modal';
 import { Icon } from '../../shared/ui/Icon';
 import { Empty, PageHeader, Panel, Stat } from '../../admin/components/Page';
 import { usePlatform } from '../PlatformApp';
 
 const isEmail = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+
+/** Escolha do plano do cliente (vazio = sem plano: sem limite, como os clientes antigos). */
+function PlanField({ value, onChange, allowNone }) {
+  return (
+    <label className="field">
+      <span>Plano</span>
+      <select className="input" value={value || ''} onChange={(e) => onChange(e.target.value || null)}>
+        {PLANS.map((p) => (
+          <option key={p.id} value={p.id}>
+            {p.name} · até {p.tables} mesas{p.extras ? ` + ${p.extras.join(', ')}` : ''} · R$ {p.price}/mês
+          </option>
+        ))}
+        {allowNone && <option value="">Sem plano (sem limite de mesas, com cardápio)</option>}
+      </select>
+      <small className="field-hint">Limita o número de mesas. O cardápio só fica liberado no Avançado.</small>
+    </label>
+  );
+}
 
 export function inviteMessage(restaurant, email) {
   return (
@@ -110,7 +129,8 @@ export default function Clients() {
                   <span className="client-avatar">{(r.name || '?')[0]}</span>
                   <div className="client-main">
                     <strong>
-                      {r.name} {r.mine && <span className="pill">Seu restaurante</span>}
+                      {r.name} {r.mine && <span className="pill">Seu restaurante</span>}{' '}
+                      <span className="pill">{planById(r.plan)?.name || 'Sem plano'}</span>
                     </strong>
                     <small>
                       {owners.length ? owners.map((o) => o.email).join(', ') : ownerInvite ? `Convite para ${ownerInvite.email}` : r.ownerEmail || 'Sem responsável'}
@@ -281,6 +301,7 @@ export function NewClient({ initial = {}, onClose, onCreated, onDone }) {
   const [name, setName] = useState(initial.name || '');
   const [email, setEmail] = useState(initial.email || '');
   const [notes, setNotes] = useState(initial.notes || '');
+  const [plan, setPlan] = useState(initial.plan || 'essencial');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const submit = async (e) => {
@@ -291,7 +312,7 @@ export function NewClient({ initial = {}, onClose, onCreated, onDone }) {
     setBusy(true);
     setError('');
     try {
-      const rid = await run(() => api.createClient({ name: name.trim(), ownerEmail: em, notes: notes.trim() }, user.uid), null);
+      const rid = await run(() => api.createClient({ name: name.trim(), ownerEmail: em, notes: notes.trim(), plan }, user.uid), null);
       onCreated?.(name.trim(), em);
       await onDone?.(rid);
       onClose();
@@ -326,9 +347,10 @@ export function NewClient({ initial = {}, onClose, onCreated, onDone }) {
           <input className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="dono@gmail.com" />
           <small className="field-hint">Ele entra como Responsável, com controle total do restaurante (marca, mesas, equipe).</small>
         </label>
+        <PlanField value={plan} onChange={setPlan} />
         <label className="field">
           <span>Observações (só você vê)</span>
-          <textarea className="input" rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={400} placeholder="Plano, telefone, combinado…" />
+          <textarea className="input" rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={400} placeholder="Telefone, combinado…" />
         </label>
         {error && <p className="field-error">{error}</p>}
       </form>
@@ -340,10 +362,15 @@ function EditClient({ r, onClose }) {
   const { run } = usePlatform();
   const [name, setName] = useState(r.name || '');
   const [notes, setNotes] = useState(r.notes || '');
+  const [plan, setPlan] = useState(r.plan || null);
+  const changed = plan !== (r.plan || null);
+  const losesMenu = changed && !planHasMenu(plan) && planHasMenu(r.plan);
   const submit = (e) => {
     e.preventDefault();
     if (!name.trim()) return;
-    run(() => api.updateClient(r.id, { name: name.trim(), notes: notes.trim() }), 'Cliente atualizado').then(onClose, () => {});
+    const patch = { name: name.trim(), notes: notes.trim() };
+    if (changed) patch.plan = plan;
+    run(() => api.updateClient(r.id, patch), 'Cliente atualizado').then(onClose, () => {});
   };
   return (
     <Modal
@@ -365,6 +392,8 @@ function EditClient({ r, onClose }) {
           <span>Nome do restaurante</span>
           <input className="input" value={name} onChange={(e) => setName(e.target.value)} maxLength={60} />
         </label>
+        <PlanField value={plan} onChange={setPlan} allowNone />
+        {losesMenu && <p className="field-error">Neste plano o cardápio sai da página das mesas. O cardápio atual será removido.</p>}
         <label className="field">
           <span>Observações (só você vê)</span>
           <textarea className="input" rows={4} value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={400} />

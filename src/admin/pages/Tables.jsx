@@ -7,6 +7,7 @@ import Modal, { Confirm } from '../../shared/ui/Modal';
 import Switch from '../../shared/ui/Switch';
 import { Icon } from '../../shared/ui/Icon';
 import { Empty, PageHeader, Panel } from '../components/Page';
+import { planById, planLimitMessage, planTables } from '../../shared/platform';
 
 const num = (v) => {
   const n = Number(String(v).trim());
@@ -82,8 +83,11 @@ function EditModal({ table, all, onSave, onClose }) {
 }
 
 export default function Tables() {
-  const { rid, tables, brand, run, toast } = useAdmin();
+  const { rid, tables, brand, run, toast, plan } = useAdmin();
   const list = tables.data;
+  const limit = planTables(plan);
+  const room = limit == null ? Infinity : Math.max(0, limit - list.length);
+  const full = room <= 0;
   const next = list.length ? Math.max(...list.map((t) => t.number)) + 1 : 1;
   const [single, setSingle] = useState('');
   const [from, setFrom] = useState('');
@@ -97,6 +101,7 @@ export default function Tables() {
     const n = num(single || next);
     if (!n) return toast('Informe um número de mesa válido.', 'error');
     if (list.some((t) => t.number === n)) return toast(`A mesa ${n} já existe.`, 'error');
+    if (full) return toast(planLimitMessage(plan), 'error');
     setBusy(true);
     await run(() => api.createTable(rid, n), `Mesa ${n} criada`).catch(() => {});
     setSingle('');
@@ -113,6 +118,8 @@ export default function Tables() {
     const todo = [];
     for (let i = a; i <= b; i++) if (!have.has(i)) todo.push(i);
     if (!todo.length) return toast('Todas essas mesas já existem.', 'error');
+    if (todo.length > room)
+      return toast(full ? planLimitMessage(plan) : `Seu plano ainda permite ${room} mesa(s): você pediu ${todo.length}. ${planLimitMessage(plan)}`, 'error');
     setBusy(true);
     try {
       for (const n of todo) await run(() => api.createTable(rid, n));
@@ -148,13 +155,25 @@ export default function Tables() {
         }
       />
 
+      {limit != null && (
+        <div className={`plan-bar ${full ? 'is-full' : ''}`} role="status">
+          <span>
+            Plano <strong>{planById(plan).name}</strong> · {list.length} de {limit} mesas
+          </span>
+          <span className="plan-meter" aria-hidden="true">
+            <i style={{ width: `${Math.min(100, (list.length / limit) * 100)}%` }} />
+          </span>
+          {full && <span className="plan-note">Limite atingido. Fale com a gente para ampliar o plano.</span>}
+        </div>
+      )}
+
       <Panel className="add-row">
         <form onSubmit={addOne} className="inline-form">
           <label className="field" htmlFor="new-table">
             <span>Nova mesa</span>
             <input id="new-table" className="input" type="number" min="1" placeholder={`Número (próxima: ${next})`} value={single} onChange={(e) => setSingle(e.target.value)} />
           </label>
-          <button className="btn btn-primary" disabled={busy}>
+          <button className="btn btn-primary" disabled={busy || full}>
             <Icon name="plus" size={16} /> Criar mesa
           </button>
         </form>
@@ -167,7 +186,7 @@ export default function Tables() {
             <span>até a</span>
             <input id="range-to" className="input" type="number" min="1" value={to} onChange={(e) => setTo(e.target.value)} />
           </label>
-          <button className="btn" disabled={busy}>
+          <button className="btn" disabled={busy || full}>
             Criar mesas
           </button>
         </form>
