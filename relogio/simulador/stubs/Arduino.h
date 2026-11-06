@@ -18,3 +18,10 @@ struct FakeSerial {
   void println(const char *) {}
 };
 extern FakeSerial Serial;
+#include <cstdlib>
+#define MALLOC_CAP_SPIRAM 1
+#define MALLOC_CAP_8BIT 2
+inline void *heap_caps_malloc(size_t n, int) { return malloc(n); }
+typedef void (*TaskFunction_t)(void *);
+inline int xTaskCreate(TaskFunction_t, const char *, int, void *, int, void *) { return 1; }  // sem som no simulador
+inline void vTaskDelete(void *) {}

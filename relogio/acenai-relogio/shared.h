@@ -58,6 +58,7 @@ struct Command {
 
 // net.cpp
 void netStart();
+void netInstallPanic();  // guarda o local do erro para mostrar após reiniciar
 void netGetSnapshot(Snapshot &out);
 bool netSend(const Command &c);
 int64_t netNowMs(const Snapshot &s);  // horário atual (epoch ms), pelo servidor ou NTP

@@ -14,6 +14,7 @@ static Snapshot g_snap;
 static uint16_t fb[240 * 240];
 
 void netStart() {}
+void netInstallPanic() {}
 void netGetSnapshot(Snapshot &o) { memcpy(&o, &g_snap, sizeof(Snapshot)); }
 bool netSend(const Command &) { return true; }
 int64_t netNowMs(const Snapshot &s) { return s.haveServerTime ? (int64_t)millis() + s.serverOffsetMs : 0; }
@@ -35,7 +36,17 @@ void beginLvglHelper(FakeWatch &) {
   lv_display_set_buffers(d, drawbuf, nullptr, sizeof(drawbuf), LV_DISPLAY_RENDER_MODE_FULL);
 }
 
+static void saveTo(const char *path);
+static uint32_t g_lastFrame = 0; static int g_frameNo = 0; static bool g_bootFrames = false;
+#define BOOT_FRAME_HOOK() do { if (g_bootFrames && millis() - g_lastFrame >= 33) { g_lastFrame = millis(); lv_refr_now(NULL); char p[64]; snprintf(p, sizeof p, "boot/%04d.ppm", g_frameNo++); saveTo(p); } } while (0)
 #include "../acenai-relogio/acenai-relogio.ino"
+static void saveTo(const char *path) {
+  FILE *f = fopen(path, "wb"); fprintf(f, "P6 240 240 255\n");
+  for (int i = 0; i < 240 * 240; i++) { uint16_t c = fb[i];
+    uint8_t rgb[3] = {(uint8_t)(((c >> 11) & 31) * 255 / 31), (uint8_t)(((c >> 5) & 63) * 255 / 63), (uint8_t)((c & 31) * 255 / 31)};
+    int k = instance.brightness; for (int j = 0; j < 3; j++) rgb[j] = rgb[j] * k / 200; fwrite(rgb, 1, 3, f); }
+  fclose(f);
+}
 
 static void save(const char *name) {
   for (int i = 0; i < 6; i++) { g_fake_millis += 40; loop(); lv_refr_now(NULL); }
@@ -65,7 +76,7 @@ int main() {
   const int64_t NOW = 1793061300000LL;  // 26/10/2026 21:35 em Brasília
   memset(&g_snap, 0, sizeof g_snap);
   g_snap.state = NetState::WifiPortal;
-  setup();
+  g_bootFrames = true; setup(); g_bootFrames = false;
   save("1-wifi");
 
   g_snap.state = NetState::Pairing; strcpy(g_snap.pairCode, "482913"); bump(); save("2-codigo");

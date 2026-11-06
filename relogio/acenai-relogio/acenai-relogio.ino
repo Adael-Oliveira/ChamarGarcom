@@ -13,12 +13,14 @@
 #include <Preferences.h>
 #include "config.h"
 #include "shared.h"
+#include "boot_logo.h"
 
 LV_FONT_DECLARE(acn_16);
 LV_FONT_DECLARE(acn_20);
 LV_FONT_DECLARE(acn_28);
 LV_FONT_DECLARE(acn_num_56);
 LV_FONT_DECLARE(acn_num_92);
+LV_FONT_DECLARE(acn_logo_44);
 
 // ---------------------------------------------------------------- cores
 #define C_BLACK      0x0B0B0B
@@ -52,6 +54,7 @@ static bool soundOn = true, vibeOn = true;
 static int confirmWhat = 0;       // 1 = trocar Wi-Fi, 2 = desconectar
 static Preferences uiPrefs;
 
+static lv_obj_t *bootScr = nullptr;
 static lv_obj_t *scrMsg, *scrIdle, *scrCall, *scrQueue, *scrDone, *scrSet, *wakeLayer;
 // mensagem
 static lv_obj_t *msgTitle, *msgBig, *msgBody, *msgBtn;
@@ -333,7 +336,7 @@ static void refreshSettingsLabels() {
   setBg(setWifi, confirmWhat == 1 ? 0x854F0B : C_CARD);
   char info[140];
   snprintf(info, sizeof info, "%s%s%s · %d%%%s · v" ACENAI_VERSION, S.myName[0] ? S.myName : "Relógio", S.restaurant[0] ? " · " : "", S.restaurant,
-           instance.getBatteryPercent(), instance.isCharging() ? " carregando" : "");
+           (int)lroundf(instance.getBatteryPercent()), instance.isCharging() ? " carregando" : "");
   lv_label_set_text(setInfo, info);
 }
 
@@ -397,7 +400,7 @@ static void fillMessage() {
       body = "No celular, entre na rede " SETUP_AP_NAME ". A página abre sozinha (ou acesse 192.168.4.1).";
       break;
     case NetState::WifiConnecting:
-      title = "Conectando ao Wi-Fi";
+      title = strncmp(body, "Erro C", 6) == 0 ? "Tire uma foto" : "Conectando ao Wi-Fi";
       if (!body[0]) body = "Aguarde um instante.";
       btn = true;
       break;
@@ -429,7 +432,7 @@ static void fillIdle() {
     lv_label_set_text_fmt(idleDate, "%s, %d %s", dias[t.tm_wday], t.tm_mday, meses[t.tm_mon]);
   }
   setColor(idleWifi, S.online ? 0x97C459 : 0xE24B4A);
-  lv_label_set_text_fmt(idleBatt, "%d%%%s", instance.getBatteryPercent(), instance.isCharging() ? " +" : "");
+  lv_label_set_text_fmt(idleBatt, "%d%%%s", (int)lroundf(instance.getBatteryPercent()), instance.isCharging() ? " +" : "");
   if (!S.online) {
     setBg(idleStatus, T_LATE.bg);
     setColor(idleStatusLbl, T_LATE.muted);
@@ -634,11 +637,169 @@ static void handleKey() {
 }
 
 // ---------------------------------------------------------------- setup / loop
+// ---------------------------------------------------------------- abertura (logo animada)
+//  A mão se desenha traço por traço, o sinal pulsa (com uma vibrada), sobe a marca,
+//  entram "Acenai" e "acenai.com.br" e uma barrinha corre enquanto o Wi-Fi conecta.
+static float clampf(float x) { return x < 0 ? 0 : (x > 1 ? 1 : x); }
+static float linf(float t, float a, float b) { return clampf((t - a) / (b - a)); }
+static float easeOut(float x) { return 1 - powf(1 - x, 3); }
+static float easeInOut(float x) { return x < .5f ? 4 * x * x * x : 1 - powf(-2 * x + 2, 3) / 2; }
+static float mixf(float a, float b, float k) { return a + (b - a) * k; }
+
+static void chimeTask(void *) {
+  const int sr = 22050, n = sr * 55 / 100;  // 0,55 s: duas notas (lá e mi)
+  int16_t *buf = (int16_t *)heap_caps_malloc(n * 2, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+  if (!buf) buf = (int16_t *)malloc(n * 2);
+  if (buf && audioOut) {
+    for (int i = 0; i < n; i++) {
+      float t = (float)i / sr, v = 0;
+      float a1 = t, a2 = t - .17f;
+      if (a1 >= 0) v += expf(-a1 * 6) * fminf(1, a1 * 200) * (sinf(2 * PI * 880 * a1) + .3f * sinf(2 * PI * 1760 * a1));
+      if (a2 >= 0) v += expf(-a2 * 5) * fminf(1, a2 * 200) * (sinf(2 * PI * 1318.5f * a2) + .3f * sinf(2 * PI * 2637 * a2));
+      float fade = i > n - 600 ? (n - i) / 600.0f : 1;  // sem estalo no fim
+      buf[i] = (int16_t)(7000 * v * fade);
+    }
+    audioOut->write((const uint8_t *)buf, n * 2);
+  }
+  free(buf);
+  vTaskDelete(NULL);
+}
+
+static void runBootAnimation() {
+  lv_obj_t *scr = newScreen(0x0B0C0F);
+
+  lv_obj_t *glow = lv_obj_create(scr);  // brilho laranja atrás da mão
+  lv_obj_set_size(glow, 16, 16);
+  lv_obj_set_style_radius(glow, LV_RADIUS_CIRCLE, 0);
+  lv_obj_set_style_bg_color(glow, lv_color_hex(0xFF9A10), 0);
+  lv_obj_set_style_bg_opa(glow, LV_OPA_TRANSP, 0);
+  lv_obj_set_style_border_width(glow, 0, 0);
+  lv_obj_set_style_shadow_color(glow, lv_color_hex(0xFF9A10), 0);
+  lv_obj_set_style_shadow_width(glow, 130, 0);
+  lv_obj_set_style_shadow_spread(glow, 26, 0);
+  lv_obj_set_style_shadow_opa(glow, LV_OPA_TRANSP, 0);
+  lv_obj_remove_flag(glow, LV_OBJ_FLAG_SCROLLABLE);
+
+  static lv_point_precise_t pts[BOOT_N_STROKES][48];
+  lv_obj_t *ln[BOOT_N_STROKES];
+  for (int i = 0; i < BOOT_N_STROKES; i++) {
+    ln[i] = lv_line_create(scr);
+    lv_obj_set_pos(ln[i], 0, 0);
+    lv_obj_set_style_line_color(ln[i], lv_color_hex(BOOT_STROKES[i].color), 0);
+    lv_obj_set_style_line_rounded(ln[i], true, 0);
+    lv_obj_add_flag(ln[i], LV_OBJ_FLAG_HIDDEN);
+  }
+
+  lv_obj_t *word = lv_obj_create(scr);  // "Acen" branco + "ai" laranja
+  lv_obj_set_size(word, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+  lv_obj_set_style_bg_opa(word, LV_OPA_TRANSP, 0);
+  lv_obj_set_style_border_width(word, 0, 0);
+  lv_obj_set_style_pad_all(word, 0, 0);
+  lv_obj_set_flex_flow(word, LV_FLEX_FLOW_ROW);
+  lv_obj_set_style_pad_column(word, 0, 0);
+  lv_obj_remove_flag(word, LV_OBJ_FLAG_SCROLLABLE);
+  newLabel(word, &acn_logo_44, 0xFBF8F2, "Acen");
+  newLabel(word, &acn_logo_44, 0xFFB020, "ai");
+  lv_obj_align(word, LV_ALIGN_TOP_MID, 0, 146);
+
+  lv_obj_t *site = newLabel(scr, &acn_16, 0x8B909A, "acenai.com.br");
+  lv_obj_align(site, LV_ALIGN_TOP_MID, 0, 196);
+
+  lv_obj_t *track = newBox(scr, 0x22252B, 100, 4, 2);
+  lv_obj_align(track, LV_ALIGN_TOP_MID, 0, 224);
+  lv_obj_t *runner = newBox(track, 0xFF9A10, 40, 4, 2);
+
+  lv_obj_set_style_opa(word, LV_OPA_TRANSP, 0);
+  lv_obj_set_style_opa(site, LV_OPA_TRANSP, 0);
+  lv_obj_set_style_opa(track, LV_OPA_TRANSP, 0);
+
+  instance.setBrightness(0);
+  lv_screen_load(scr);
+  lv_timer_handler();
+
+  const uint32_t t0 = millis();
+  bool buzzed = false, chimed = false;
+  int lastBright = -1;
+  for (;;) {
+    float t = (millis() - t0) / 1000.0f;
+    if (t > 4.6f) break;
+
+    int br = (int)(BRIGHT_FULL * easeOut(linf(t, .1f, .55f)));
+    if (br != lastBright) { instance.setBrightness(br); lastBright = br; }
+
+    // marca: grande no centro → sobe e diminui para dar lugar ao nome
+    float up = easeInOut(linf(t, 2.3f, 2.95f));
+    float pop = 1 + .06f * sinf(linf(t, 1.95f, 2.25f) * PI);
+    float pulse = (t > 1.9f && t < 3.1f) ? sinf((t - 1.9f) / 1.2f * PI * 2) * .5f + .5f : 0;
+    float S_ = mixf(2.6f, 1.75f, up) * pop;
+    float cy = mixf(120, 78, up);
+    float ox = 120 - 32 * S_, oy = cy - 32 * S_;
+
+    for (int i = 0; i < BOOT_N_STROKES; i++) {
+      const BootStroke &b = BOOT_STROKES[i];
+      float k = i < 4 ? easeInOut(linf(t, .55f + i * .16f, 1.05f + i * .16f))
+                      : easeOut(linf(t, 1.45f + (i - 4) * .18f, 1.8f + (i - 4) * .18f));
+      if (k <= 0) continue;
+      float m = k * (b.n - 1);
+      int full = (int)m;
+      int cnt = 0;
+      for (int j = 0; j <= full && j < b.n; j++, cnt++) {
+        pts[i][cnt].x = ox + b.xy[j * 2] * S_;
+        pts[i][cnt].y = oy + b.xy[j * 2 + 1] * S_;
+      }
+      if (full < b.n - 1) {  // ponta do traço, entre dois pontos
+        float f = m - full;
+        pts[i][cnt].x = ox + mixf(b.xy[full * 2], b.xy[full * 2 + 2], f) * S_;
+        pts[i][cnt].y = oy + mixf(b.xy[full * 2 + 1], b.xy[full * 2 + 3], f) * S_;
+        cnt++;
+      }
+      if (cnt < 2) continue;
+      lv_obj_set_style_line_width(ln[i], (int32_t)lroundf(b.width * S_), 0);
+      if (i >= 4) lv_obj_set_style_line_opa(ln[i], (lv_opa_t)(255 * (1 - .55f * pulse)), 0);
+      lv_line_set_points(ln[i], pts[i], cnt);
+      lv_obj_remove_flag(ln[i], LV_OBJ_FLAG_HIDDEN);
+    }
+
+    lv_obj_set_pos(glow, 120 - 8, (int)cy - 8);
+    lv_opa_t go = (lv_opa_t)(95 * easeOut(linf(t, 1.3f, 2.0f)) * (1 + .25f * pulse));
+    lv_obj_set_style_shadow_opa(glow, go, 0);
+    lv_obj_set_style_bg_opa(glow, go, 0);
+
+    float w = easeOut(linf(t, 2.65f, 3.2f));
+    lv_obj_set_style_opa(word, (lv_opa_t)(255 * w), 0);
+    lv_obj_set_style_translate_y(word, (int32_t)((1 - w) * 14), 0);
+    float st = easeOut(linf(t, 3.05f, 3.5f));
+    lv_obj_set_style_opa(site, (lv_opa_t)(255 * st), 0);
+    lv_obj_set_style_translate_y(site, (int32_t)((1 - st) * 8), 0);
+    lv_obj_set_style_opa(track, (lv_opa_t)(255 * linf(t, 3.5f, 3.8f)), 0);
+    float ph = fmodf(fmaxf(0, t - 3.5f) / 1.1f, 1);
+    lv_obj_set_x(runner, (int32_t)(-40 + ph * 140));
+
+    if (!buzzed && t > 1.95f) {  // uma vibrada curta quando o sinal aparece
+      buzzed = true;
+      if (vibeOn) { instance.drv.setWaveform(0, 1); instance.drv.setWaveform(1, 0); instance.drv.run(); }
+    }
+    if (!chimed && t > 2.65f) {  // som curto quando entra o nome
+      chimed = true;
+      if (soundOn && audioOut) xTaskCreate(chimeTask, "chime", 4096, NULL, 1, NULL);
+    }
+
+    instance.loop();
+    lv_timer_handler();
+#ifdef BOOT_FRAME_HOOK
+    BOOT_FRAME_HOOK();  // só no simulador do PC
+#endif
+    delay(8);
+  }
+  bootScr = scr;
+}
+
 void setup() {
   Serial.begin(115200);
+  netInstallPanic();
   instance.begin();
   beginLvglHelper(instance);
-  instance.setBrightness(BRIGHT_FULL);
+  instance.setBrightness(0);          // acende na abertura
   instance.enablePowerEvent(PowerEvent::IRQ_PEKEY_CLICKED, true);
   instance.onEvent(POWER_EVENT, onPower);
 
@@ -655,9 +816,11 @@ void setup() {
   buildSettings();
   buildWakeLayer();
 
-  netStart();
+  netStart();                // o Wi-Fi já vai conectando durante a abertura
+  runBootAnimation();
   netGetSnapshot(S);
   showScreen(Scr::Message);
+  if (bootScr) { lv_obj_delete(bootScr); bootScr = nullptr; }
   Serial.println("Acenai relógio " ACENAI_VERSION);
 }
 

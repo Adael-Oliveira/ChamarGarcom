@@ -2,6 +2,8 @@
 
 O relógio vibra e apita quando uma mesa chama. Ele mostra a mesa, o motivo e há quanto tempo o cliente espera. Um toque em **Visualizado** registra o atendimento no nome do relógio, igual à central no computador: o relatório mostra quem atendeu, quando e qual mesa.
 
+**Novo na v1.0.5:** ao ligar, o relógio mostra a abertura animada do Acenai (logo, nome e acenai.com.br) enquanto conecta no Wi-Fi.
+
 ---
 
 ## 1. Gravar o programa no relógio (pelo navegador, sem instalar nada)
@@ -11,7 +13,7 @@ Você precisa do Google Chrome ou do Edge no computador e de um **cabo USB de da
 1. Ligue o relógio no computador pelo cabo USB.
 2. Abra **https://espressif.github.io/esptool-js/** no Chrome.
 3. Em **Baudrate**, deixe `921600` e clique em **Connect**. Escolha a porta que aparecer (geralmente "USB JTAG/serial debug unit" ou "COM…").
-4. Em **Flash Address**, deixe `0x0`. Em **Choose a file**, selecione o arquivo `acenai-relogio-v1.0.0.bin`.
+4. Em **Flash Address**, deixe `0x0`. Em **Choose a file**, selecione o arquivo `acenai-relogio-v1.0.5.bin`.
 5. Clique em **Program** e espere chegar a 100%.
 6. Clique em **Disconnect** e reinicie o relógio. Para reiniciar, segure o botão lateral até desligar e depois aperte de novo.
 

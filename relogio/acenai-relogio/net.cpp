@@ -14,6 +14,7 @@
 #include <Preferences.h>
 #include <ArduinoJson.h>
 #include <time.h>
+#include <esp_system.h>
 
 #define FS_DOCS   "projects/" FIREBASE_PROJECT_ID "/databases/(default)/documents"
 #define FS_BASE   "https://firestore.googleapis.com/v1/" FS_DOCS
@@ -93,6 +94,13 @@ static int request(const char *method, const String &url, const String &body, St
   if (strcmp(method, "GET") != 0 && strcmp(method, "DELETE") != 0) http.addHeader("Content-Type", ctype);
   if (withAuth && idToken.length()) http.addHeader("Authorization", "Bearer " + idToken);
   int code = http.sendRequest(method, body);
+  int size = code > 0 ? http.getSize() : -1;
+  if (size > 48000) {  // resposta grande demais para a memória do relógio: ignora
+    Serial.printf("[http] resposta de %d bytes ignorada: %s\n", size, url.c_str());
+    http.end(); tls.stop(); lastHost = "";
+    out = String();
+    return -2;
+  }
   out = code > 0 ? http.getString() : String();
   http.end();
   if (code <= 0) { tls.stop(); lastHost = ""; }
@@ -186,7 +194,7 @@ static int fsCommit(JsonDocument &body, String &out) {
 
 static void loadBrand() {
   JsonDocument d;
-  if (fsGet("restaurants/" + rid + "/settings/brand", d) == 200) {
+  if (fsGet("restaurants/" + rid + "/settings/brand?mask.fieldPaths=name", d) == 200) {
     String n = fsStr(d["fields"], "name");
     LOCKED(strlcpy(snap.restaurant, n.c_str(), sizeof(snap.restaurant)));
   }
@@ -250,7 +258,7 @@ static bool pairingStep() {
     if (!keepMsg) setState(NetState::Pairing, "");
   }
   JsonDocument d;
-  int code = fsGet("admins/" + uid, d);
+  int code = fsGet("admins/" + uid + "?mask.fieldPaths=restaurantId&mask.fieldPaths=displayName&mask.fieldPaths=name", d);
   if (code != 200) return false;
   rid = fsStr(d["fields"], "restaurantId");
   if (!rid.length()) return false;
@@ -267,7 +275,7 @@ static bool pairingStep() {
 /** Confere se ainda faz parte da equipe (e atualiza o nome). */
 static void checkAccess() {
   JsonDocument d;
-  int code = fsGet("admins/" + uid, d);
+  int code = fsGet("admins/" + uid + "?mask.fieldPaths=restaurantId&mask.fieldPaths=displayName&mask.fieldPaths=name", d);
   if (code == 404) {
     Serial.println("[acesso] relógio removido da equipe");
     rid = "";
@@ -281,7 +289,7 @@ static void checkAccess() {
   if (r != rid) { rid = r; prefs.putString("rid", rid); loadBrand(); }
   applyMember(d["fields"]);
   JsonDocument g;
-  if (fsGet("restaurants/" + rid + "/settings/general", g) == 200) {
+  if (fsGet("restaurants/" + rid + "/settings/general?mask.fieldPaths=suspended", g) == 200) {
     bool paused = g["fields"]["suspended"]["booleanValue"] | false;
     xSemaphoreTake(mtx, portMAX_DELAY);
     NetState cur = snap.state;
@@ -490,6 +498,69 @@ static void handleCommand(const Command &c) {
   }
 }
 
+// ----- Wi-Fi: o relógio tenta de novo sozinho, para sempre (o "reconectar automático"
+// do chip desiste depois de uma tentativa em alguns erros)
+static volatile uint8_t lastReason = 0;
+static volatile bool gotIp = false;
+static uint8_t wifiTries = 0;
+static uint32_t wifiTryAt = 0;
+static char bootNote[96] = "";
+
+// ----- diagnóstico: se o programa der erro, guarda onde foi (sobrevive ao reinício)
+struct CrashInfo { uint32_t magic, pc, bt[6]; uint8_t n, core; };
+RTC_NOINIT_ATTR static CrashInfo crash;
+static void onPanic(arduino_panic_info_t *info, void *) {
+  crash.pc = (uint32_t)info->pc;
+  crash.core = info->core;
+  crash.n = info->backtrace_len < 6 ? info->backtrace_len : 6;
+  for (int i = 0; i < crash.n; i++) crash.bt[i] = info->backtrace[i];
+  crash.magic = 0xAC3A1E57;
+}
+void netInstallPanic() { set_arduino_panic_handler(onPanic, nullptr); }
+
+static void onWifiEvent(arduino_event_id_t ev, arduino_event_info_t info) {
+  if (ev == ARDUINO_EVENT_WIFI_STA_DISCONNECTED) { lastReason = info.wifi_sta_disconnected.reason; gotIp = false; }
+  if (ev == ARDUINO_EVENT_WIFI_STA_GOT_IP) { lastReason = 0; gotIp = true; }
+}
+
+static void wifiStart(bool hard) {
+  if (hard) {  // desliga o rádio e liga de novo (resolve quando o Wi-Fi "trava")
+    WiFi.disconnect(true, false);
+    WiFi.mode(WIFI_OFF);
+    vTaskDelay(pdMS_TO_TICKS(400));
+  } else {
+    WiFi.disconnect(false, false);
+    vTaskDelay(pdMS_TO_TICKS(100));
+  }
+  WiFi.mode(WIFI_STA);
+  WiFi.setSleep(false);                          // sem economia enquanto conecta
+  WiFi.setMinSecurity(WIFI_AUTH_OPEN);           // aceita roteador WPA antigo também
+  WiFi.setScanMethod(WIFI_ALL_CHANNEL_SCAN);     // procura em todos os canais…
+  WiFi.setSortMethod(WIFI_CONNECT_AP_BY_SIGNAL); // …e pega o roteador/repetidor com melhor sinal
+  WiFi.setAutoReconnect(false);                  // quem cuida das novas tentativas é o relógio
+  WiFi.begin(ssid.c_str(), pass.c_str());
+  wifiTryAt = millis();
+  wifiTries++;
+  Serial.printf("[wifi] tentativa %u em \"%s\"%s\n", wifiTries, ssid.c_str(), hard ? " (rádio reiniciado)" : "");
+}
+
+static const char *reasonText(uint8_t r) {
+  switch (r) {
+    case WIFI_REASON_4WAY_HANDSHAKE_TIMEOUT:
+    case WIFI_REASON_HANDSHAKE_TIMEOUT:
+    case WIFI_REASON_AUTH_FAIL:
+    case WIFI_REASON_MIC_FAILURE:
+      return "A senha parece errada. Confira em Ajustes > Trocar Wi-Fi.";
+    case WIFI_REASON_NO_AP_FOUND:
+    case WIFI_REASON_NO_AP_FOUND_W_COMPATIBLE_SECURITY:
+    case WIFI_REASON_NO_AP_FOUND_IN_AUTHMODE_THRESHOLD:
+    case WIFI_REASON_NO_AP_FOUND_IN_RSSI_THRESHOLD:
+      return "Rede não encontrada. Ela precisa ser 2,4 GHz e estar perto.";
+    default:
+      return "";
+  }
+}
+
 static void netTask(void *) {
   prefs.begin("acenai", false);
   ssid = prefs.getString("ssid", "");
@@ -498,32 +569,73 @@ static void netTask(void *) {
   refreshToken = prefs.getString("rt", "");
   rid = prefs.getString("rid", "");
 
+  // se reiniciou por erro, mostra o motivo na tela (ajuda no suporte)
+  esp_reset_reason_t rr = esp_reset_reason();
+  const char *why = rr == ESP_RST_PANIC ? "erro no programa" : rr == ESP_RST_BROWNOUT ? "bateria fraca"
+                  : (rr == ESP_RST_INT_WDT || rr == ESP_RST_TASK_WDT || rr == ESP_RST_WDT) ? "travamento" : nullptr;
+  if (why) snprintf(bootNote, sizeof bootNote, "O relógio reiniciou (%s). Conectando...", why);
+  Serial.printf("[boot] motivo do reinício: %d\n", (int)rr);
+  if (rr == ESP_RST_PANIC && crash.magic == 0xAC3A1E57) {
+    // mostra o código do erro por 30 s (tire uma foto e mande para o suporte)
+    char m[96];
+    int k = snprintf(m, sizeof m, "Erro C%u %08lX", crash.core, (unsigned long)crash.pc);
+    for (int i = 0; i < crash.n && k < (int)sizeof m - 10; i++) k += snprintf(m + k, sizeof m - k, " %08lX", (unsigned long)crash.bt[i]);
+    crash.magic = 0;
+    Serial.println(m);
+    setState(NetState::WifiConnecting, m);
+    vTaskDelay(pdMS_TO_TICKS(30000));
+  }
+  crash.magic = 0;
+
+  WiFi.persistent(false);  // a rede fica só nas configurações do relógio
   if (!ssid.length()) runPortal();
 
   setState(NetState::WifiConnecting, "");
-  WiFi.mode(WIFI_STA);
-  WiFi.setAutoReconnect(true);
-  WiFi.begin(ssid.c_str(), pass.c_str());
-  WiFi.setSleep(true);  // economia de energia entre as consultas
+  WiFi.onEvent(onWifiEvent);
+  wifiStart(true);
   configTzTime(ACENAI_TZ, "pool.ntp.org", "time.google.com");
   tls.setCACert(GOOGLE_ROOT_CAS);
 
   uint32_t lastPoll = 0, lastAccess = 0, wifiLostAt = millis();
-  bool pollNow = true;
+  bool pollNow = true, wasConnected = false;
   for (;;) {
     Command c;
-    if (WiFi.status() != WL_CONNECTED) {
+    if (WiFi.status() != WL_CONNECTED || !gotIp) {
       setOnline(false);
+      if (wasConnected) {  // caiu: começa de novo do zero
+        wasConnected = false;
+        wifiTries = 0;
+        wifiLostAt = millis();
+        tls.stop();
+        lastHost = "";
+        Serial.printf("[wifi] caiu (motivo %u)\n", lastReason);
+        wifiStart(false);
+      }
+      // nova tentativa: 12 s nas primeiras, depois 20 s; a cada 4 reinicia o rádio
+      uint32_t wait = wifiTries < 3 ? 12000 : 20000;
+      if (millis() - wifiTryAt > wait) wifiStart(wifiTries % 4 == 0);
       xSemaphoreTake(mtx, portMAX_DELAY);
       NetState cur = snap.state;
       xSemaphoreGive(mtx);
       if (cur == NetState::Boot || cur == NetState::WifiConnecting) {
         char msg[96];
-        snprintf(msg, sizeof msg, "%s", millis() - wifiLostAt > 30000 ? "Não conectou. Confira o Wi-Fi ou troque a rede nos ajustes." : "");
+        const char *why = reasonText(lastReason);
+        if (millis() - wifiLostAt < 15000) snprintf(msg, sizeof msg, "%s", bootNote);
+        else if (*why) snprintf(msg, sizeof msg, "%s", why);
+        else snprintf(msg, sizeof msg, "Tentando \"%.30s\" de novo (%u)...", ssid.c_str(), wifiTries);
         setState(NetState::WifiConnecting, msg);
       }
       if (xQueueReceive(cmdQ, &c, pdMS_TO_TICKS(1000)) == pdTRUE && c.type == CmdType::WifiReset) handleCommand(c);
       continue;
+    }
+    if (!wasConnected) {
+      wasConnected = true;
+      wifiTries = 0;
+      WiFi.setSleep(true);  // economia de energia entre as consultas
+      tls.stop();
+      lastHost = "";
+      pollNow = true;
+      Serial.printf("[wifi] conectado, IP %s, sinal %d dBm\n", WiFi.localIP().toString().c_str(), WiFi.RSSI());
     }
     wifiLostAt = millis();
 

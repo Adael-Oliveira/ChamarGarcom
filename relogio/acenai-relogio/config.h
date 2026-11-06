@@ -4,7 +4,7 @@
 // =====================================================================
 #pragma once
 
-#define ACENAI_VERSION "1.0.0"
+#define ACENAI_VERSION "1.0.5"
 
 // Projeto do Firebase (os mesmos valores públicos do site acenai.com.br)
 #define FIREBASE_API_KEY    "AIzaSyAQwZB04QYBtttFujfPsz7o8P5owV8E60Y"
