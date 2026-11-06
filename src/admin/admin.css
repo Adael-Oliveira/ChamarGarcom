@@ -1565,3 +1565,10 @@ table.data tr.is-off td {
 .plan-note { font-weight: 600; }
 .plan-lock { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; max-width: 560px; }
 .plan-lock p { margin: 0; color: var(--ink-2); }
+
+/* seleção de várias mesas */
+table.data .col-check { width: 44px; padding-right: 0; }
+table.data .col-check input { width: 18px; height: 18px; accent-color: var(--brand); cursor: pointer; vertical-align: middle; }
+table.data tr.is-selected td { background: color-mix(in srgb, var(--brand) 7%, transparent); }
+.bulk-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 14px; margin-bottom: 12px; border-radius: 12px; background: color-mix(in srgb, #dc2626 8%, var(--surface)); border: 1px solid color-mix(in srgb, #dc2626 25%, transparent); }
+.bulk-bar > span { margin-right: auto; }

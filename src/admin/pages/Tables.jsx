@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import api from '../../lib/api';
 import { tableUrl, BASE } from '../../lib/env';
 import { useAdmin } from '../AdminApp';
@@ -82,6 +82,51 @@ function EditModal({ table, all, onSave, onClose }) {
   );
 }
 
+/** Exclui várias mesas, uma de cada vez (cada exclusão atualiza a contagem do plano). */
+function BulkDeleteModal({ tables, onDelete, onClose, onDone }) {
+  const [done, setDone] = useState(-1); // -1 = ainda não começou
+  const busy = done >= 0;
+  const nums = tables.map((t) => t.number).sort((a, b) => a - b);
+  const shown = nums.length > 24 ? `${nums.slice(0, 24).join(', ')} e mais ${nums.length - 24}` : nums.join(', ');
+  const go = async () => {
+    setDone(0);
+    let ok = 0;
+    for (const t of tables) {
+      try {
+        await onDelete(t);
+        ok++;
+      } catch {
+        break; // o erro já foi avisado; para aqui
+      }
+      setDone(ok);
+    }
+    onDone(ok, tables.length);
+  };
+  return (
+    <Modal
+      title={`Excluir ${tables.length} mesa${tables.length > 1 ? 's' : ''}?`}
+      onClose={busy ? () => {} : onClose}
+      footer={
+        <>
+          <button className="btn" onClick={onClose} disabled={busy}>
+            Cancelar
+          </button>
+          <button className="btn btn-danger-solid" onClick={go} disabled={busy}>
+            {busy ? `Excluindo ${done} de ${tables.length}…` : `Excluir ${tables.length} mesa${tables.length > 1 ? 's' : ''}`}
+          </button>
+        </>
+      }
+    >
+      <p className="muted" style={{ marginTop: 0 }}>
+        Mesas: <strong>{shown}</strong>
+      </p>
+      <p className="muted" style={{ margin: 0 }}>
+        Os QR Codes dessas mesas deixam de funcionar. O histórico de chamadas continua nos relatórios.
+      </p>
+    </Modal>
+  );
+}
+
 export default function Tables() {
   const { rid, tables, brand, run, toast, plan } = useAdmin();
   const list = tables.data;
@@ -95,6 +140,18 @@ export default function Tables() {
   const [busy, setBusy] = useState(false);
   const [modal, setModal] = useState(null);
   const close = () => setModal(null);
+  const [selected, setSelected] = useState(() => new Set());
+  // tira da seleção mesas que não existem mais
+  const sel = useMemo(() => list.filter((t) => selected.has(t.id)), [list, selected]);
+  const allOn = list.length > 0 && sel.length === list.length;
+  const toggle = (id) =>
+    setSelected((s) => {
+      const n = new Set(s);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
+  const toggleAll = () => setSelected(allOn ? new Set() : new Set(list.map((t) => t.id)));
 
   const addOne = async (e) => {
     e.preventDefault();
@@ -195,10 +252,27 @@ export default function Tables() {
       {tables.loading ? null : !list.length ? (
         <Empty title="Nenhuma mesa ainda" text="Crie a primeira mesa acima. O QR Code é gerado na hora." />
       ) : (
+        <>
+        {sel.length > 0 && (
+          <div className="bulk-bar" role="status">
+            <span>
+              <strong>{sel.length}</strong> mesa{sel.length > 1 ? 's' : ''} selecionada{sel.length > 1 ? 's' : ''}
+            </span>
+            <button className="btn btn-sm" onClick={() => setSelected(new Set())}>
+              Limpar seleção
+            </button>
+            <button className="btn btn-sm btn-danger-solid" onClick={() => setModal({ type: 'bulkdel', list: sel })}>
+              <Icon name="trash" size={16} /> Excluir selecionadas
+            </button>
+          </div>
+        )}
         <div className="table-scroll panel">
           <table className="data">
             <thead>
               <tr>
+                <th className="col-check">
+                  <input type="checkbox" checked={allOn} ref={(el) => el && (el.indeterminate = sel.length > 0 && !allOn)} onChange={toggleAll} aria-label="Selecionar todas as mesas" title="Selecionar todas" />
+                </th>
                 <th>Mesa</th>
                 <th>Situação</th>
                 <th>Link</th>
@@ -207,7 +281,10 @@ export default function Tables() {
             </thead>
             <tbody>
               {list.map((t) => (
-                <tr key={t.id} className={t.active ? '' : 'is-off'}>
+                <tr key={t.id} className={`${t.active ? '' : 'is-off'} ${selected.has(t.id) ? 'is-selected' : ''}`}>
+                  <td className="col-check">
+                    <input type="checkbox" checked={selected.has(t.id)} onChange={() => toggle(t.id)} aria-label={`Selecionar mesa ${t.number}`} />
+                  </td>
                   <td>
                     <b className="mesa-n">{t.number}</b>
                   </td>
@@ -249,6 +326,7 @@ export default function Tables() {
             </tbody>
           </table>
         </div>
+        </>
       )}
 
       {modal?.type === 'qr' && <QrModal table={modal.t} brand={brand} onClose={close} toast={toast} />}
@@ -260,6 +338,18 @@ export default function Tables() {
           confirmLabel="Gerar novo link"
           onClose={close}
           onConfirm={() => run(() => api.regenerateToken(rid, modal.t), 'Novo link gerado').then(close, () => {})}
+        />
+      )}
+      {modal?.type === 'bulkdel' && (
+        <BulkDeleteModal
+          tables={modal.list}
+          onClose={close}
+          onDelete={(t) => run(() => api.deleteTable(rid, t))}
+          onDone={(ok, total) => {
+            close();
+            setSelected(new Set());
+            if (ok) toast(ok === total ? `${ok} mesa${ok > 1 ? 's' : ''} excluída${ok > 1 ? 's' : ''}` : `${ok} de ${total} mesas excluídas`);
+          }}
         />
       )}
       {modal?.type === 'del' && (
