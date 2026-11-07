@@ -1572,3 +1572,138 @@ table.data .col-check input { width: 18px; height: 18px; accent-color: var(--bra
 table.data tr.is-selected td { background: color-mix(in srgb, var(--brand) 7%, transparent); }
 .bulk-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 14px; margin-bottom: 12px; border-radius: 12px; background: color-mix(in srgb, #dc2626 8%, var(--surface)); border: 1px solid color-mix(in srgb, #dc2626 25%, transparent); }
 .bulk-bar > span { margin-right: auto; }
+
+/* ---------- relógio Acenai: convites (só para quem ainda não tem relógio) ---------- */
+.watch-promo {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 18px;
+  align-items: center;
+  padding: 18px 20px;
+  margin: 0 0 18px;
+  border-radius: var(--r-lg);
+  background: #15171c;
+  color: #fbf8f2;
+  overflow: hidden;
+}
+.watch-promo::after {
+  content: '';
+  position: absolute;
+  right: -90px;
+  top: -90px;
+  width: 240px;
+  height: 240px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgb(255 154 16 / 28%), transparent 65%);
+  pointer-events: none;
+}
+.watch-promo-mini {
+  width: 58px;
+  height: 66px;
+  border-radius: 17px;
+  background: linear-gradient(145deg, #50545c, #1d1f23 60%);
+  box-shadow: 0 8px 18px rgb(0 0 0 / 35%), inset 0 1px 0 rgb(255 255 255 / 18%);
+  display: grid;
+  place-items: center;
+}
+.watch-promo-mini span {
+  width: 42px;
+  height: 46px;
+  border-radius: 9px;
+  background: #0b2a4a;
+  display: grid;
+  place-items: center;
+  font: 800 1.4rem/1 var(--display);
+  color: #eaf2ff;
+  box-shadow: inset 0 0 0 4px #050506;
+}
+.watch-promo-copy h2 {
+  margin: 0;
+  font-family: var(--display);
+  font-size: 1.12rem;
+  letter-spacing: -0.01em;
+}
+.watch-promo-copy p {
+  margin: 4px 0 0;
+  color: #c8ccd4;
+  font-size: 0.92rem;
+  max-width: 62ch;
+}
+.watch-promo-copy b {
+  color: #fbf8f2;
+}
+.watch-promo-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  position: relative;
+  z-index: 1;
+}
+.watch-promo .btn-primary-amber {
+  background: #ffb020;
+  border-color: #ffb020;
+  color: #15171c;
+}
+.watch-promo .btn-primary-amber:hover {
+  background: #ffc14d;
+}
+.watch-promo .btn-ghost-dark {
+  background: transparent;
+  color: #c8ccd4;
+  border-color: #3a3f48;
+}
+.watch-tip {
+  position: fixed;
+  right: calc(20px + env(safe-area-inset-right, 0px));
+  bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  z-index: 40;
+  width: min(380px, calc(100vw - 32px));
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
+  padding: 14px 40px 14px 14px;
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  box-shadow: var(--shadow-lg);
+  font-size: 0.9rem;
+}
+.watch-tip strong {
+  display: block;
+  margin-bottom: 2px;
+}
+.watch-tip p {
+  margin: 0;
+  color: var(--ink-2);
+}
+.watch-tip a {
+  display: inline-block;
+  margin-top: 8px;
+  font-weight: 700;
+  color: var(--brand-text);
+}
+.watch-tip-x {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  border: 0;
+  background: none;
+  color: var(--ink-3);
+  padding: 4px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+@media (max-width: 720px) {
+  .watch-promo {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .watch-promo-actions {
+    grid-column: 1 / -1;
+  }
+  .watch-tip {
+    right: 16px;
+    left: 16px;
+    width: auto;
+  }
+}

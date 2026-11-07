@@ -753,6 +753,11 @@ static void runBootAnimation() {
         pts[i][cnt].y = oy + mixf(b.xy[full * 2 + 1], b.xy[full * 2 + 3], f) * S_;
         cnt++;
       }
+      // tira pontos repetidos (linha de comprimento zero quebra o desenho em algumas versões do LVGL)
+      int k2 = 1;
+      for (int j = 1; j < cnt; j++)
+        if (fabsf(pts[i][j].x - pts[i][k2 - 1].x) + fabsf(pts[i][j].y - pts[i][k2 - 1].y) > .3f) pts[i][k2++] = pts[i][j];
+      cnt = k2;
       if (cnt < 2) continue;
       lv_obj_set_style_line_width(ln[i], (int32_t)lroundf(b.width * S_), 0);
       if (i >= 4) lv_obj_set_style_line_opa(ln[i], (lv_opa_t)(255 * (1 - .55f * pulse)), 0);

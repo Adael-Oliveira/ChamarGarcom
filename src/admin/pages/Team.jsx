@@ -8,6 +8,7 @@ import { MAX_STAFF_NAME, PERMS, cleanPerms, cleanStaffName, normalizeEmail, perm
 import Modal, { Confirm } from '../../shared/ui/Modal';
 import { Icon } from '../../shared/ui/Icon';
 import { PageHeader, Panel } from '../components/Page';
+import { WatchPromo } from '../components/WatchOffer';
 
 const ROLES = {
   staff: { label: 'Equipe', text: 'Atende as mesas. Você escolhe o que mais a pessoa pode fazer.' },
@@ -149,6 +150,8 @@ export default function Team() {
         title="Equipe"
         text="Só entra na central quem estiver aqui. Qualquer outra conta Google que tentar entrar não vê nada do restaurante."
       />
+
+      {!team.loading && <WatchPromo rid={rid} restaurant={brand.name} hasDevice={team.data.members.some((m) => m.device)} />}
 
       <Panel title="Convidar alguém">
         <form className="invite-form" onSubmit={invite}>

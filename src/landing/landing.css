@@ -343,7 +343,234 @@
   color: var(--ink-3);
   font-size: 0.9rem;
 }
+
+/* ---------- relógio (opcional) ---------- */
+.lp-watch {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+  gap: 40px;
+  align-items: center;
+  padding: 48px 0 56px;
+  border-top: 1px solid var(--line);
+  scroll-margin-top: 16px;
+}
+.lp-watch-tag {
+  display: inline-block;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: #fff4dc;
+  color: #6b4508;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.lp-watch h2 {
+  font-family: var(--display);
+  font-size: clamp(1.8rem, 3.6vw, 2.6rem);
+  letter-spacing: -0.03em;
+  line-height: 1.02;
+  margin: 14px 0 12px;
+  text-wrap: balance;
+}
+.lp-watch-lead {
+  color: var(--ink-2);
+  font-size: 1.05rem;
+  margin: 0 0 18px;
+  max-width: 56ch;
+}
+.lp-watch-list {
+  list-style: none;
+  margin: 0 0 22px;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.lp-watch-list li {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+.lp-watch-list svg {
+  flex: none;
+  margin-top: 3px;
+  color: var(--ok);
+}
+.lp-watch-price {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 28px;
+  padding: 18px 22px;
+  margin: 0 0 18px;
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  border: 1px solid var(--line);
+}
+.lp-watch-price .lp-plan-price {
+  margin: 0;
+}
+.lp-watch-price ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  color: var(--ink-2);
+  font-size: 0.92rem;
+  display: grid;
+  gap: 2px;
+}
+.lp-watch-note {
+  margin: 14px 0 0;
+  color: var(--ink-3);
+  font-size: 0.9rem;
+}
+.lp-watch-visual {
+  position: relative;
+  display: grid;
+  place-items: center;
+}
+.lp-watch-visual::before {
+  content: '';
+  position: absolute;
+  width: 78%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgb(255 176 32 / 22%), transparent 68%);
+}
+.lp-watch-device {
+  position: relative;
+  width: min(100%, 340px);
+  aspect-ratio: 760 / 1100;
+  animation: lp-watch-buzz 9s infinite;
+}
+.lp-watch-frame {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+/* área da tela dentro da foto do relógio (300×300 em 760×1100) */
+.lp-watch-screen {
+  position: absolute;
+  left: 29.74%;
+  top: 33.82%;
+  width: 39.47%;
+  aspect-ratio: 1;
+  border-radius: 3%;
+  overflow: hidden;
+  background: #000;
+}
+.lp-watch-screen img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  animation: 9s infinite step-end;
+}
+.lp-watch-screen .s1 { animation-name: lp-scr-1; animation-timing-function: linear; }
+.lp-watch-screen .s2 { animation-name: lp-scr-2; }
+.lp-watch-screen .s3 { animation-name: lp-scr-3; }
+.lp-watch-screen .s4 { animation-name: lp-scr-4; animation-timing-function: linear; }
+.lp-watch-screen .lp-watch-gloss {
+  opacity: 1;
+  animation: none;
+}
+.lp-watch-tap {
+  position: absolute;
+  left: 50%;
+  top: 85%;
+  width: 22%;
+  aspect-ratio: 1;
+  margin: -11% 0 0 -11%;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 55%);
+  opacity: 0;
+  animation: lp-watch-tap 9s infinite;
+}
+.lp-watch-ring {
+  position: absolute;
+  left: 18%;
+  right: 18%;
+  top: 21%;
+  bottom: 23%;
+  border-radius: 24%;
+  border: 2px solid #ffb020;
+  opacity: 0;
+  pointer-events: none;
+  animation: lp-watch-ring 9s infinite;
+}
+.lp-watch-ring.r2 {
+  animation-delay: 0.35s;
+}
+@keyframes lp-scr-1 {
+  0% { opacity: 1; }
+  28.9% { opacity: 1; }
+  29% { opacity: 0; }
+  95% { opacity: 0; }
+  99% { opacity: 1; }
+  100% { opacity: 1; }
+}
+@keyframes lp-scr-2 {
+  0% { opacity: 0; }
+  29% { opacity: 1; }
+  49% { opacity: 0; }
+}
+@keyframes lp-scr-3 {
+  0% { opacity: 0; }
+  49% { opacity: 1; }
+  69% { opacity: 0; }
+}
+@keyframes lp-scr-4 {
+  0% { opacity: 0; }
+  68.9% { opacity: 0; }
+  69% { opacity: 1; }
+  95% { opacity: 1; }
+  99% { opacity: 0; }
+  100% { opacity: 0; }
+}
+@keyframes lp-watch-tap {
+  0%, 64% { opacity: 0; transform: scale(0.6); }
+  66% { opacity: 1; transform: scale(1); }
+  70% { opacity: 0; transform: scale(1.3); }
+  100% { opacity: 0; }
+}
+@keyframes lp-watch-buzz {
+  0%, 29% { transform: none; }
+  29.6%, 30.8%, 32%, 33.2% { transform: translateX(-3px) rotate(-0.6deg); }
+  30.2%, 31.4%, 32.6%, 33.8% { transform: translateX(3px) rotate(0.6deg); }
+  34.4%, 100% { transform: none; }
+}
+@keyframes lp-watch-ring {
+  0%, 29% { opacity: 0; transform: scale(1); }
+  29.5% { opacity: 0.8; transform: scale(1); }
+  38% { opacity: 0; transform: scale(1.25); }
+  100% { opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lp-watch-device,
+  .lp-watch-screen img,
+  .lp-watch-tap,
+  .lp-watch-ring {
+    animation: none;
+  }
+  .lp-watch-screen .s2,
+  .lp-watch-screen .lp-watch-gloss {
+    opacity: 1;
+  }
+}
+
 @media (max-width: 900px) {
+  .lp-watch {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 20px;
+  }
+  .lp-watch-visual {
+    order: -1;
+  }
+  .lp-watch-device {
+    width: min(70%, 260px);
+  }
   .lp-hero {
     grid-template-columns: minmax(0, 1fr);
   }

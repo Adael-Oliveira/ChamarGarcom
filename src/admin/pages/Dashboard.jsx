@@ -7,6 +7,7 @@ import { fmtClock, fmtDuration, fmtTime, startOfDay } from '../../shared/format'
 import { Icon } from '../../shared/ui/Icon';
 import Switch from '../../shared/ui/Switch';
 import { Empty, PageHeader, Stat } from '../components/Page';
+import { WatchTip } from '../components/WatchOffer';
 
 function stateOf(table, call, now) {
   if (!table.active) return 'off';
@@ -85,7 +86,7 @@ function TableTile({ table, call, now, onViewed, onDone, busy }) {
 }
 
 export default function Dashboard() {
-  const { rid, user, myName, can, settings, tables, calls, run, navigate } = useAdmin();
+  const { rid, user, myName, can, settings, tables, calls, run, navigate, brand } = useAdmin();
   const who = { uid: user.uid, name: myName };
   const now = useNow(1000);
   const [busy, setBusy] = useState(null);
@@ -188,6 +189,7 @@ export default function Dashboard() {
           )}
         </section>
       </div>
+      <WatchTip rid={rid} restaurant={brand?.name} oldest={queue[0]} now={now} enabled={can('config')} />
     </>
   );
 }

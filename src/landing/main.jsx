@@ -7,7 +7,13 @@ import './landing.css';
 import { isDemo } from '../lib/api';
 import { BASE } from '../lib/env';
 import PlatformMark, { Wordmark } from '../shared/ui/PlatformMark';
-import { PLANS, PLATFORM_TAGLINE, SETUP_FEE } from '../shared/platform';
+import { PLANS, PLATFORM_TAGLINE, SETUP_FEE, WATCH_OFFER } from '../shared/platform';
+import watchFrame from './relogio-frame.webp';
+import watchGloss from './relogio-brilho.webp';
+import scrIdle from './relogio-tela-espera.webp';
+import scrCall from './relogio-tela-chamada.webp';
+import scrCall2 from './relogio-tela-chamada2.webp';
+import scrOk from './relogio-tela-caminho.webp';
 import { Icon } from '../shared/ui/Icon';
 import TableView from '../client/TableView';
 import { ContactButtons, LeadForm, useContacts, waLink } from '../shared/ui/Contact';
@@ -53,6 +59,66 @@ function Plans({ whatsapp }) {
       <p className="lp-setup">
         Taxa de implantação: <strong>R$ {SETUP_FEE}</strong> · pagamento único
       </p>
+    </section>
+  );
+}
+
+/** Relógio de atendimento: opcional, vendido à parte (valor único). */
+function WatchOffer({ whatsapp }) {
+  const href = whatsapp ? waLink(whatsapp, WATCH_OFFER.waText()) : '#quero';
+  return (
+    <section className="lp-watch" id="relogio" aria-labelledby="relogio-t">
+      <div className="lp-watch-copy">
+        <span className="lp-watch-tag">Opcional</span>
+        <h2 id="relogio-t">A chamada no pulso do garçom.</h2>
+        <p className="lp-watch-lead">
+          Quando uma mesa chama, o relógio vibra e mostra o número e o motivo. O garçom marca <strong>Visualizado</strong> ali mesmo, sem voltar ao caixa, e o cliente vê na hora que alguém está a caminho.
+        </p>
+        <ul className="lp-watch-list">
+          <li>
+            <Icon name="check" size={18} /> Vibra e mostra a mesa e o motivo: garçom ou conta
+          </li>
+          <li>
+            <Icon name="check" size={18} /> Visualizado direto no relógio, com aviso no celular do cliente
+          </li>
+          <li>
+            <Icon name="check" size={18} /> Funciona no Wi-Fi do restaurante, junto com a central do caixa
+          </li>
+        </ul>
+        <div className="lp-watch-price">
+          <p className="lp-plan-price">
+            <span>R$</span> {WATCH_OFFER.price}
+            <small>por relógio</small>
+          </p>
+          <ul>
+            {WATCH_OFFER.terms.map((t) => (
+              <li key={t}>{t}</li>
+            ))}
+          </ul>
+        </div>
+        <div className="lp-ctas">
+          <a className="btn btn-lg btn-wa" href={href} target={whatsapp ? '_blank' : undefined} rel="noopener noreferrer">
+            <Icon name="whatsapp" size={18} /> Quero o relógio no meu restaurante
+          </a>
+        </div>
+        <p className="lp-watch-note">O Acenai funciona completo sem o relógio. Ele é um extra para quem quiser.</p>
+      </div>
+      <div className="lp-watch-visual">
+        {/* Telas reais do relógio (geradas pelo simulador do firmware), em sequência: espera → chamada → a caminho */}
+        <div className="lp-watch-device" role="img" aria-label="Relógio Acenai: chega a chamada da mesa 7, o relógio vibra e o garçom marca Visualizado">
+          <img className="lp-watch-frame" src={watchFrame} alt="" width="380" height="550" />
+          <div className="lp-watch-screen" aria-hidden="true">
+            <img className="s1" src={scrIdle} alt="" />
+            <img className="s2" src={scrCall} alt="" />
+            <img className="s3" src={scrCall2} alt="" />
+            <img className="s4" src={scrOk} alt="" />
+            <span className="lp-watch-tap" />
+            <img className="lp-watch-gloss" src={watchGloss} alt="" />
+          </div>
+          <span className="lp-watch-ring" aria-hidden="true" />
+          <span className="lp-watch-ring r2" aria-hidden="true" />
+        </div>
+      </div>
     </section>
   );
 }
@@ -133,6 +199,8 @@ function Landing() {
           </li>
         </ol>
       </section>
+
+      <WatchOffer whatsapp={contacts?.whatsapp} />
 
       <Plans whatsapp={contacts?.whatsapp} />
 

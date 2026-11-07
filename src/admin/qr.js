@@ -21,6 +21,94 @@ function roundRect(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
+// Mão acenando da marca Acenai (mesmos traços do favicon), em unidades de 0 a 64.
+const HAND = [
+  ['M12.5 31 L12.5 38 A11.5 11.5 0 0 0 33.5 44 L38 36.5', 4.6],
+  ['M19 33 L24.5 21.5', 4.6],
+  ['M25.5 36 L31 25', 4.6],
+  ['M32 38.5 L36.5 30', 4.6],
+  ['M40 16.5 A9 9 0 0 1 47.5 25', 4],
+  ['M43 8.5 A17 17 0 0 1 56 22', 4],
+];
+
+/**
+ * Desenha o QR Code personalizado: pontos arredondados, cantos escuros (a câmera precisa
+ * deles escuros para achar o código) e um selo no centro com a mão do Acenai e o número
+ * da mesa. Usa correção de erro H (até 30%); o selo cobre ~5% do código.
+ */
+export function drawBrandedQr(x, text, number, ox, oy, S) {
+  const q = QRCode.create(text, { errorCorrectionLevel: 'H' });
+  const N = q.modules.size;
+  const D = q.modules.data;
+  const m = S / (N + 2);
+  const o = m;
+  const ink = '#15171c';
+  x.save();
+  x.fillStyle = '#ffffff';
+  x.fillRect(ox, oy, S, S);
+  const eye = (r, c) => (r < 7 && c < 7) || (r < 7 && c >= N - 7) || (r >= N - 7 && c < 7);
+  const hole = Math.round((N * 0.23) / 2) * 2 + 1;
+  const h0 = (N - hole) / 2;
+  x.fillStyle = ink;
+  for (let r = 0; r < N; r++)
+    for (let c = 0; c < N; c++) {
+      if (!D[r * N + c] || eye(r, c)) continue;
+      if (r >= h0 && r < h0 + hole && c >= h0 && c < h0 + hole) continue;
+      roundRect(x, ox + o + c * m + m * 0.04, oy + o + r * m + m * 0.04, m * 0.92, m * 0.92, m * 0.24);
+      x.fill();
+    }
+  for (const [r, c] of [
+    [0, 0],
+    [0, N - 7],
+    [N - 7, 0],
+  ]) {
+    const X = ox + o + c * m;
+    const Y = oy + o + r * m;
+    x.fillStyle = ink;
+    roundRect(x, X, Y, 7 * m, 7 * m, 2.3 * m);
+    x.fill();
+    x.fillStyle = '#ffffff';
+    roundRect(x, X + m, Y + m, 5 * m, 5 * m, 1.6 * m);
+    x.fill();
+    x.fillStyle = ink;
+    roundRect(x, X + 2 * m, Y + 2 * m, 3 * m, 3 * m, 1.1 * m);
+    x.fill();
+  }
+  // selo: fundo escuro, mão laranja, número claro
+  const bs = hole * m;
+  const bx = ox + o + h0 * m;
+  const by = oy + o + h0 * m;
+  x.fillStyle = '#ffffff';
+  roundRect(x, bx - m * 0.3, by - m * 0.3, bs + m * 0.6, bs + m * 0.6, bs * 0.26);
+  x.fill();
+  x.fillStyle = ink;
+  roundRect(x, bx + m * 0.2, by + m * 0.2, bs - m * 0.4, bs - m * 0.4, bs * 0.24);
+  x.fill();
+  const hs = bs * 0.5;
+  x.save();
+  x.translate(bx + (bs - hs) / 2 - bs * 0.02, by + bs * 0.06);
+  x.scale(hs / 64, hs / 64);
+  x.translate(1.5, 1);
+  const g = x.createLinearGradient(0, 0, 64, 64);
+  g.addColorStop(0, '#ffc21a');
+  g.addColorStop(1, '#ff8a00');
+  x.strokeStyle = g;
+  x.lineCap = 'round';
+  for (const [d, w] of HAND) {
+    x.lineWidth = w;
+    x.stroke(new Path2D(d));
+  }
+  x.restore();
+  const label = String(number ?? '');
+  const size = bs * (label.length > 2 ? 0.27 : label.length > 1 ? 0.33 : 0.36);
+  x.fillStyle = '#fbf8f2';
+  x.textAlign = 'center';
+  x.textBaseline = 'alphabetic';
+  x.font = `800 ${size}px "Bricolage Grotesque Variable", system-ui, sans-serif`;
+  x.fillText(label, bx + bs / 2, by + bs * 0.88);
+  x.restore();
+}
+
 /** Cartão de mesa pronto para imprimir, com a marca do restaurante. */
 export async function tableCardPng(table, brandIn) {
   const brand = sanitizeBrand(brandIn);
@@ -41,8 +129,7 @@ export async function tableCardPng(table, brandIn) {
 
   // faixa da marca
   x.fillStyle = brand.primary;
-  roundRect(x, 0, W, 300, 0);
-  x.fill();
+  x.fillRect(0, 0, W, 300);
   x.fillStyle = brand.accent;
   x.fillRect(0, 300, W, 10);
 
@@ -92,10 +179,9 @@ export async function tableCardPng(table, brandIn) {
   x.font = `800 130px ${display}`;
   x.fillText(String(table.number), W - 44, 196);
 
-  // QR
-  const qr = document.createElement('canvas');
-  await QRCode.toCanvas(qr, tableUrl(table.token), { width: 470, margin: 1, errorCorrectionLevel: 'M', color: { dark: '#14161b', light: '#ffffff' } });
-  x.drawImage(qr, (W - 470) / 2, 360);
+  // QR com a marca Acenai e o número da mesa no centro
+  await document.fonts?.load('800 40px "Bricolage Grotesque Variable"').catch(() => {});
+  drawBrandedQr(x, tableUrl(table.token), table.number, (W - 470) / 2, 360, 470);
 
   x.textAlign = 'center';
   x.fillStyle = '#14161b';

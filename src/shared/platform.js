@@ -10,6 +10,14 @@ export const PLANS = [
 ];
 export const SETUP_FEE = '297,00';
 
+/** Relógio de atendimento (opcional): valor único por unidade, entregue instalado. */
+export const WATCH_OFFER = {
+  price: '597',
+  installments: '3x de R$ 199 sem juros',
+  terms: ['Ou em até 3x de R$ 199 sem juros', 'Entregue instalado e funcionando', 'Pronto até o mês seguinte ao pedido'],
+  waText: (restaurant) => `Olá! Quero saber do relógio Acenai${restaurant ? ` para o ${restaurant}` : ''}.`,
+};
+
 export const planById = (id) => PLANS.find((p) => p.id === id) || null;
 /** Limite de mesas do plano; null = restaurante sem plano definido (sem limite). */
 export const planTables = (id) => planById(id)?.tables ?? null;
