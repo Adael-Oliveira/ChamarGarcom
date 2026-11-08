@@ -1,0 +1,61 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+@font-face{font-family:B;src:url(FONT_B)}@font-face{font-family:O;src:url(FONT_O)}
+*{margin:0;box-sizing:border-box}html,body{width:1080px;height:1920px;overflow:hidden;background:#0b0c0f}
+#v{position:relative;width:1080px;height:1920px;overflow:hidden;font-family:O;color:#fbf8f2}
+.bg-dark{background:radial-gradient(1200px 1000px at 50% 38%,#23262e,#0b0c0f 72%)}
+#v.bg-light{background:linear-gradient(180deg,#f6f4ef,#e9e6df);color:#15171c}
+#v.bg-orange{background:linear-gradient(160deg,#ffc21a,#ff8a00);color:#15171c}
+.abs{position:absolute}
+.glow{position:absolute;border-radius:50%;background:radial-gradient(circle,rgba(255,154,16,.36),transparent 65%)}
+.brand{position:absolute;left:64px;top:96px;display:flex;align-items:center;gap:14px;font:800 44px/1 B;letter-spacing:-.04em}
+.brand b{color:#ffb020}.bg-light .brand b{color:#e07800}
+.hl{position:absolute;left:70px;right:70px;font:800 104px/.98 B;letter-spacing:-.05em}
+.hl.c{text-align:center}.hl.s{font-size:84px}.hl.xl{font-size:150px}
+.o{color:#ffb020}.bg-light .o{color:#e07800}.bg-orange .o{color:#fff}
+.sub{position:absolute;left:70px;right:70px;font:600 46px/1.28 O;opacity:.82}.sub.c{text-align:center}
+.phone{position:absolute;width:560px;height:1212px;border-radius:80px;background:#0b0c0f;padding:16px;box-shadow:0 60px 120px rgba(0,0,0,.45),inset 0 0 0 3px #2b2e34}
+.phone .scr{position:relative;width:100%;height:100%;border-radius:64px;overflow:hidden;background:#fff}
+.phone .scr>img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:top}
+.tablet{position:absolute;width:1000px;height:654px;border-radius:44px;background:#121317;padding:20px;box-shadow:0 60px 120px rgba(0,0,0,.45),inset 0 0 0 3px #2b2e34}
+.tablet .scr{position:relative;width:100%;height:100%;border-radius:26px;overflow:hidden;background:#f2f3f5}
+.tablet .scr>img{position:absolute;left:0;top:0;width:100%}
+.watch{position:absolute;width:560px;height:810px}.watch .fr{position:absolute;inset:0;width:100%;height:100%}
+.watch .ws{position:absolute;left:29.74%;top:33.82%;width:39.47%;aspect-ratio:1;border-radius:3%;overflow:hidden;background:#000}
+.watch .ws img{position:absolute;inset:0;width:100%;height:100%}
+.card{position:absolute;border-radius:30px;overflow:hidden;box-shadow:0 50px 100px rgba(0,0,0,.35)}.card img{display:block;width:100%}
+.tap{position:absolute;width:150px;height:150px;margin:-75px 0 0 -75px;border-radius:50%;background:rgba(255,176,32,.55);box-shadow:0 0 0 8px rgba(255,176,32,.25);opacity:0;z-index:5}
+.ring{position:absolute;border:6px solid #ffb020;border-radius:30%;opacity:0}
+.pill{position:absolute;padding:22px 36px;border-radius:999px;background:#15171c;color:#fbf8f2;font:700 44px/1 O;white-space:nowrap;box-shadow:0 20px 40px rgba(0,0,0,.3)}
+.pill b{color:#ffb020}.pill.w{background:#fff;color:#15171c}
+.cta{position:absolute;left:50%;padding:34px 56px;border-radius:999px;background:linear-gradient(135deg,#ffc21a,#ff8a00);color:#15171c;font:800 54px/1 B;letter-spacing:-.02em;white-space:nowrap}
+.num{position:absolute;display:grid;place-items:center;width:110px;height:110px;border-radius:50%;background:#ffb020;color:#15171c;font:800 64px B}
+.wood{position:absolute;left:0;right:0;bottom:0;height:900px;background:repeating-linear-gradient(92deg,rgba(0,0,0,.05) 0 3px,transparent 3px 46px),repeating-linear-gradient(88deg,rgba(255,255,255,.05) 0 2px,transparent 2px 31px),linear-gradient(180deg,#a8754a,#8a5a35)}
+.x{color:#ff5a4f}.ok{color:#3ddc84}
+</style></head><body><div id="v"></div>
+<script>
+const HANDP='<path d="M12.5 31 L12.5 38 A11.5 11.5 0 0 0 33.5 44 L38 36.5"/><path d="M19 33 L24.5 21.5"/><path d="M25.5 36 L31 25"/><path d="M32 38.5 L36.5 30"/><path d="M40 16.5 A9 9 0 0 1 47.5 25" stroke-width="4"/><path d="M43 8.5 A17 17 0 0 1 56 22" stroke-width="4"/>';
+let gid=0;const hand=(s,st='')=>{const g='h'+(gid++);return `<svg width="${s}" height="${s}" viewBox="0 0 64 64" style="${st}"><defs><linearGradient id="${g}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffc21a"/><stop offset="1" stop-color="#ff8a00"/></linearGradient></defs><g fill="none" stroke="url(#${g})" stroke-linecap="round" stroke-width="4.6" transform="translate(1.5 1)">${HANDP}</g></svg>`};
+const brand=()=>`<div class="brand">${hand(54)}<span>Acen<b>ai</b></span></div>`;
+const E=(a,t)=>{t=Math.max(0,Math.min(1,t));return a==='o'?1-Math.pow(1-t,3):a==='b'?1+2.7*Math.pow(t-1,3)+1.7*Math.pow(t-1,2):t};
+let SHOTS=[],cur=-1;
+function setShots(s){SHOTS=s;let a=0;for(const x of s){x.t0=a;a+=x.d}return a}
+function sfx(){const out=[];for(const s of SHOTS){const d=document.createElement('div');d.innerHTML=s.html;
+ d.querySelectorAll('[data-tap]').forEach(e=>out.push([s.t0+ +e.dataset.tap,'tap']));
+ d.querySelectorAll('[data-buzz]').forEach(e=>out.push([s.t0+ +e.dataset.buzz.split(',')[0],'buzz']));
+ d.querySelectorAll('[data-pop]').forEach(e=>out.push([s.t0+ +e.dataset.pop,'pop']));}return out}
+function render(t){let i=SHOTS.findIndex(s=>t>=s.t0&&t<s.t0+s.d);if(i<0)i=SHOTS.length-1;const s=SHOTS[i],lt=t-s.t0;
+ const v=document.getElementById('v');if(i!==cur){cur=i;v.className='bg-'+(s.bg||'dark');v.innerHTML=s.html}
+ v.querySelectorAll('*').forEach(e=>{const D=e.dataset;if(!Object.keys(D).length)return;let op=1,ty=0,sc=1,rot=0,tx=0;
+  if(D.in!==undefined){const p=E('o',(lt-D.in)/.4);op*=p;ty+=(1-p)*50}
+  if(D.pop!==undefined){const p=(lt-D.pop)/.45;op*=Math.max(0,Math.min(1,p*3));sc*=p<=0?.5:p>=1?1:.5+.5*E('b',p)}
+  if(D.out!==undefined){op*=1-Math.max(0,Math.min(1,(lt-D.out)/.2))}
+  if(D.show!==undefined){op*=lt>=+D.show?1:0}if(D.hide!==undefined){op*=lt>=+D.hide?0:1}
+  if(D.zoom){const [a,b]=D.zoom.split(',').map(Number);sc*=a+(b-a)*E('o',lt/s.d)}
+  if(D.slide){const [x0,y0,x1,y1,t0,t1]=D.slide.split(',').map(Number);const p=E('o',(lt-t0)/(t1-t0));tx+=x0+(x1-x0)*p;ty+=y0+(y1-y0)*p}
+  if(D.buzz){const [a,b]=D.buzz.split(',').map(Number);if(lt>a&&lt<b)rot+=Math.sin(lt*70)*2.2}
+  if(D.tap!==undefined){const p=(lt-D.tap)/.5;if(p<0||p>1){op=0}else{op=1-p;sc=.5+.9*p}}
+  if(D.ring!==undefined){const p=((lt-D.ring)%0.9)/0.9;if(lt<+D.ring)op=0;else{op=1-p;sc=1+.35*p}}
+  if(D.timer){const [a,b,v0,v1]=D.timer.split(',').map(Number);const val=Math.floor(v0+(v1-v0)*Math.max(0,Math.min(1,(lt-a)/(b-a))));e.textContent=Math.floor(val/60)+':'+String(val%60).padStart(2,'0')}
+  e.style.opacity=op;e.style.transform=`translate(${tx}px,${ty}px) scale(${sc}) rotate(${rot}deg) ${D.base||''}`});}
+</script>
+<script>REELDEFS</script></body></html>
