@@ -1,13 +1,19 @@
 const I={m1:'IMG_m1',m2:'IMG_m2',m3:'IMG_m3',pl:'IMG_plaque',pa:'IMG_painel',eq:'IMG_equipe',re:'IMG_rel',c1:'IMG_c1',c2:'IMG_c2',c3:'IMG_c3',wf:'IMG_wframe',w1:'IMG_w1',w2:'IMG_w2',w3:'IMG_w3',w4:'IMG_w4'};
 const tap=(x,y,t)=>`<div class="tap" style="left:${x}%;top:${y}%" data-tap="${t}"></div>`;
 const tapA=(x,y,t)=>`<div class="tap" style="left:${x}px;top:${y}px" data-tap="${t}"></div>`;
-const phone=(imgs,x,y,a='data-in=".1"',inner='')=>`<div class="phone" style="left:${x}px;top:${y}px" ${a}><div class="scr">${imgs.map(([s,sh])=>`<img src="${I[s]}" ${sh!==undefined?`data-show="${sh}"`:''}>`).join('')}${inner}</div></div>`;
-const tablet=(img,x,y,z='1,1.6',orig='30% 62%',a='data-in=".1"')=>`<div class="tablet" style="left:${x}px;top:${y}px" ${a}><div class="scr"><img src="${I[img]}" style="transform-origin:${orig}" data-zoom="${z}"></div></div>`;
-const watch=(scr,x,y,a='data-in=".1"')=>`<div class="watch" style="left:${x}px;top:${y}px" ${a}><img class="fr" src="${I.wf}"><div class="ws">${scr.map(([s,sh])=>`<img src="${I[s]}" ${sh!==undefined?`data-show="${sh}"`:''}>`).join('')}</div></div>`;
+const phone=(imgs,x,y,a='data-in=".1"',inner='')=>`<div class="phone" style="left:${x}px;top:${y}px" ${a}><div class="scr">${imgs.map(([s,sh])=>`<img src="${I[s]||s}" ${sh!==undefined?`data-show="${sh}"`:''}>`).join('')}${inner}</div></div>`;
+const tablet=(img,x,y,z='1,1.6',orig='30% 62%',a='data-in=".1"')=>`<div class="tablet" style="left:${x}px;top:${y}px" ${a}><div class="scr"><img src="${I[img]||img}" style="transform-origin:${orig}" data-zoom="${z}"></div></div>`;
+const watch=(scr,x,y,a='data-in=".1"')=>`<div class="watch" style="left:${x}px;top:${y}px" ${a}><img class="fr" src="${I.wf}"><div class="ws">${scr.map(([s,sh])=>`<img src="${I[s]||s}" ${sh!==undefined?`data-show="${sh}"`:''}>`).join('')}</div></div>`;
 const plaque=(x,y,w,a)=>`<div class="card" style="left:${x}px;top:${y}px;width:${w}px" ${a}><img src="${I.pl}"></div>`;
 const H=(txt,top,cls='',a='data-in="0"')=>`<div class="hl ${cls}" style="top:${top}px" ${a}>${txt}</div>`;
 const S=(txt,top,cls='',a='data-in=".3"')=>`<div class="sub ${cls}" style="top:${top}px" ${a}>${txt}</div>`;
 const pill=(txt,left,top,t,cls='')=>`<div class="pill ${cls}" style="left:${left}px;top:${top}px" data-pop="${t}">${txt}</div>`;
+// Helpers extras: notificação, balão de conversa, barras, flash
+const notif=(title,body,top,t)=>`<div class="notif" style="top:${top}px" data-slide="0,-500,0,0,${t},${t+.45}"><div class="ic">${hand(70)}</div><div><b>${title}</b>${body}</div></div>`;
+const bubble=(txt,side,top,t)=>`<div class="bubble ${side}" style="top:${top}px" data-pop="${t}">${txt}</div>`;
+const bars=(items,left,top,t0)=>`<div class="bars" style="left:${left}px;top:${top}px;height:500px">${items.map(([lab,val,h],k)=>`<div class="bar" data-h="${h}" data-grow="${t0+k*.25},${t0+k*.25+.6}" style="height:0"><span>${val}</span><i>${lab}</i></div>`).join('')}</div>`;
+const flash=(t=0)=>`<div class="flash" data-flash="${t}"></div>`;
+const A_={wfila:'ASSET:w-e-fila.png',watras:'ASSET:w-f-atrasada.png',wconta12:'ASSET:w-d-conta12.png',wcam12:'ASSET:w-g-caminho12.png',dpainel:'ASSET:d-painel.jpg',bmenu:'ASSET:c-carvao-menu.jpg',bchamou:'ASSET:c-carvao-chamou.jpg',bcaminho:'ASSET:c-carvao-caminho.jpg',mgarcom:'ASSET:m-painel-garcom.jpg'};
 const END={d:2.6,html:`<div class="glow" style="left:90px;top:300px;width:900px;height:900px"></div><div class="abs" style="left:390px;top:470px" data-pop="0">${hand(300)}</div>
 <div class="hl c xl" style="top:820px" data-in=".2">Acen<span class="o">ai</span></div>${S('Chamada de garçom pelo QR Code',1000,'c','data-in=".35"')}
 <div class="cta" style="top:1150px" data-base="translateX(-50%)" data-in=".5">Peça sua demonstração</div>${S('👆 link na bio',1310,'c','data-in=".7"')}`};
@@ -60,4 +66,16 @@ r8:[
  {d:2.8,bg:'light',html:brand()+H('Logo e número da mesa<br><span class="o">dentro do QR</span>',230,'s')+`<div class="card" style="left:90px;top:560px;width:900px;transform-origin:50% 60%" data-zoom="1,1.25"><img src="${I.pl}"></div>`},
  {d:2.6,bg:'light',html:brand()+H('Aponta, toca,<br><span class="o">pronto</span> 👋',230,'s')+phone([['m1'],['m2',1.4]],260,600,'data-in=".1"',tap(50,47,1.0))},
  {d:2.8,html:`<div class="glow" style="left:90px;top:200px;width:900px;height:900px"></div>`+brand()+H('Planos a partir de',330,'c s')+H('<span class="o">R$ 99,90</span>',470,'c xl','data-pop=".3"')+S('por mês',650,'c')+S('A gente cuida da implantação 🤝',800,'c','data-in=".9"')},
+ END],
+r9:[
+ {d:2.6,html:brand()+H('Sábado à noite.',380)+H('Casa <span class="o">cheia</span>. 🔥',520,'','data-in=".7"')+S('Três mesas chamando ao mesmo tempo…',720,'','data-in="1.3"')},
+ {d:3.0,html:flash()+brand()+H('No relógio, a fila<br>em <span class="o">ordem de chegada</span>',240,'c s')+watch([[A_.wfila]],260,760)},
+ {d:2.8,html:brand()+H('Demorou?<br>Fica <span class="x">vermelho</span>. ⏰',240,'c s')+`<div class="abs" style="left:0;top:0;width:1080px;height:1920px" data-buzz="0.3,1.8">${watch([[A_.watras]],260,760,'')}</div>`+ring(.2)},
+ {d:2.6,bg:'light',html:brand()+H('E no caixa,<br>tudo no <span class="o">painel</span>',230,'s')+tablet(A_.dpainel,40,700,'1,1.5','30% 60%')},
+ END],
+r10:[
+ {d:3.2,html:brand()+bubble('Ô, moço!','l',420,0)+bubble('Garçom!!','l',580,.7)+bubble('Por favooor… 🙋','l',740,1.4)+S('Soa familiar? 😅',1000,'c','data-in="2.1"')},
+ {d:3.0,bg:'light',html:brand()+notif('Acenai · Mesa 12','Chamou o garçom',220,1.5)+phone([[A_.bmenu],[A_.bchamou,1.3]],260,600,'data-in=".1"',tap(50,47,.9))},
+ {d:2.6,html:brand()+H('O garçom vê no<br><span class="o">celular</span> ou no relógio',230,'c s')+phone([[A_.mgarcom]],260,620)},
+ {d:2.4,bg:'light',html:brand()+H('Sem gritar.<br><span class="o">Garçom a caminho</span> ✓',230,'s')+phone([[A_.bcaminho]],260,600)},
  END]};

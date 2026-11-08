@@ -7,7 +7,7 @@ const A = { FONT_B: d64(R + '/bricolage-grotesque/files/bricolage-grotesque-lati
  IMG_painel: d64(V + 'a-painel-nova.jpg', 'image/jpeg'), IMG_equipe: d64(V + 'a-equipe.jpg', 'image/jpeg'), IMG_rel: d64(V + 'a-relatorios.jpg', 'image/jpeg'),
  IMG_c1: d64(V + 'm-cor-Brasa.png', 'image/png'), IMG_c2: d64(V + 'm-cor-Vinho.png', 'image/png'), IMG_c3: d64(V + 'm-cor-Horta.png', 'image/png'),
  IMG_wframe: d64('assets/frame.png', 'image/png'), IMG_w1: d64(V + 'w-a-espera.png', 'image/png'), IMG_w2: d64(V + 'w-b-chamada.png', 'image/png'), IMG_w3: d64(V + 'w-b2-chamada.png', 'image/png'), IMG_w4: d64(V + 'w-c-caminho.png', 'image/png') };
-let defs = fs.readFileSync('defs.js', 'utf8'); for (const [k, v] of Object.entries(A)) defs = defs.split("'" + k + "'").join("'" + v + "'");
+let defs = fs.readFileSync('defs.js', 'utf8').replace(/'ASSET:([^']+)'/g, (m, n) => "'" + d64('assets/' + n, n.endsWith('.png') ? 'image/png' : 'image/jpeg') + "'"); for (const [k, v] of Object.entries(A)) defs = defs.split("'" + k + "'").join("'" + v + "'");
 let html = fs.readFileSync('engine.html', 'utf8').replace('FONT_B', A.FONT_B).replace('FONT_O', A.FONT_O).replace('REELDEFS', () => defs);
 const id = process.argv[2], fr = process.argv[3] === '--frames' ? process.argv[4].split(',').map(Number) : null;
 (async () => {
