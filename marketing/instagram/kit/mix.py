@@ -1,8 +1,8 @@
 import json,sys,numpy as np,soundfile as sf,subprocess
 SR=44100
-id,bpm,tr=sys.argv[1],sys.argv[2],sys.argv[3]
+id,bpm,tr=sys.argv[1],sys.argv[2],sys.argv[3];prog=sys.argv[4] if len(sys.argv)>4 else '0'
 m=json.load(open(f'out/{id}.json'));T=m['T']
-subprocess.run([sys.executable,'music.py',str(T),bpm,tr,f'out/{id}.m.wav'],check=True)
+subprocess.run([sys.executable,'music.py',str(T),bpm,tr,f'out/{id}.m.wav',prog],check=True)
 mus,_=sf.read(f'out/{id}.m.wav');out=mus*.8
 def add(sig,t,g=1):
     i=int(t*SR);j=min(len(out),i+len(sig))

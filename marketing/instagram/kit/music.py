@@ -3,7 +3,12 @@ import numpy as np, soundfile as sf, sys
 SR = 44100; T = float(sys.argv[1]); BPM = float(sys.argv[2]); TR = int(sys.argv[3]); beat = 60 / BPM
 n = int(SR * T); out = np.zeros((n, 2))
 def note(f): return 440 * 2 ** ((f + TR - 69) / 12)
-CH = [[53, 57, 60, 64], [55, 59, 62, 65], [52, 55, 59, 62], [57, 60, 64, 67]]  # Fmaj7 G7sus Em7 Am7
+PROGS = [[[53, 57, 60, 64], [55, 59, 62, 65], [52, 55, 59, 62], [57, 60, 64, 67]],  # 0: Fmaj7 G7sus Em7 Am7
+ [[57, 60, 64, 67], [53, 57, 60, 64], [48, 52, 55, 59], [55, 59, 62, 65]],  # 1: Am7 Fmaj7 Cmaj7 G7sus
+ [[48, 52, 55, 59], [57, 60, 64, 67], [50, 53, 57, 60], [55, 59, 62, 65]],  # 2: Cmaj7 Am7 Dm7 G7sus
+ [[50, 53, 57, 60], [55, 59, 62, 65], [48, 52, 55, 59], [53, 57, 60, 64]],  # 3: Dm7 G7sus Cmaj7 Fmaj7
+ [[52, 55, 59, 62], [57, 60, 64, 67], [50, 53, 57, 60], [55, 59, 62, 65]]]  # 4: Em7 Am7 Dm7 G7sus
+CH = PROGS[int(sys.argv[5]) if len(sys.argv) > 5 else 0]
 t = np.arange(n) / SR
 rng = np.random.default_rng(3)
 def add(sig, start, pan=0.0, g=1.0):
