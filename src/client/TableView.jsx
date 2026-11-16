@@ -119,7 +119,7 @@ export default function TableView({
             <em>Ver</em>
           </button>
         )}
-        {ordering && !waiting && (
+        {ordering && (
           <button type="button" className="tv-order" onClick={() => !preview && onOrder?.()} tabIndex={noTab}>
             <span className="tv-order-icon">
               <MenuIcon />
