@@ -110,3 +110,12 @@ export const orderCode = (id) => '#' + String(id || '').replace(/[^a-z0-9]/gi, '
 
 /** Pedidos que somam na conta da mesa (não cancelados e ainda não fechados). */
 export const countsInBill = (o) => o.status !== ORDER_STATUS.CANCELED && o.status !== ORDER_STATUS.WAITING && !o.closed;
+
+/**
+ * A impressora da cozinha imprime este pedido? Mesma regra do firmware:
+ * pedido novo ainda não impresso, ou um "Reimprimir" de pedido em andamento.
+ */
+export const needsPrint = (o) =>
+  !o.printed &&
+  (o.status === ORDER_STATUS.NEW ||
+    ((o.printCount || 0) > 0 && (o.status === ORDER_STATUS.PREPARING || o.status === ORDER_STATUS.READY)));

@@ -460,6 +460,15 @@
   cursor: pointer;
   box-shadow: 0 12px 24px -14px var(--brand-deep);
 }
+.of-primary {
+  min-width: 0;
+}
+.of-primary span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .of-primary span:last-child {
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
@@ -710,5 +719,22 @@
   .of-done-icon,
   .of-toast {
     animation: none;
+  }
+}
+
+/* tela estreita: botões de quantidade menores */
+.of {
+  container-type: inline-size;
+}
+@container (max-width: 360px) {
+  .of-qty button {
+    width: 32px;
+  }
+  .of-primary {
+    padding: 14px 12px;
+    justify-content: center;
+  }
+  .of-actions:not(.is-one) .of-primary span:last-child:not(:first-child) {
+    display: none;
   }
 }

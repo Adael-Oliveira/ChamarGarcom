@@ -22,9 +22,9 @@ function PlanField({ value, onChange, allowNone }) {
             {p.name} · até {p.tables} mesas{p.extras ? ` + ${p.extras.join(', ')}` : ''} · R$ {p.price}/mês
           </option>
         ))}
-        {allowNone && <option value="">Sem plano (sem limite de mesas, com cardápio)</option>}
+        {allowNone && <option value="">Sem plano (sem limite de mesas, com cardápio em PDF)</option>}
       </select>
-      <small className="field-hint">Limita o número de mesas. O cardápio só fica liberado no Avançado.</small>
+      <small className="field-hint">Limita o número de mesas. O cardápio digital com pedidos vale em todos; o cardápio em PDF só no Avançado.</small>
     </label>
   );
 }
@@ -393,7 +393,7 @@ function EditClient({ r, onClose }) {
           <input className="input" value={name} onChange={(e) => setName(e.target.value)} maxLength={60} />
         </label>
         <PlanField value={plan} onChange={setPlan} allowNone />
-        {losesMenu && <p className="field-error">Neste plano o cardápio sai da página das mesas. O cardápio atual será removido.</p>}
+        {losesMenu && <p className="field-error">Neste plano o cardápio em PDF sai da página das mesas e será removido. O cardápio digital continua.</p>}
         <label className="field">
           <span>Observações (só você vê)</span>
           <textarea className="input" rows={4} value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={400} />

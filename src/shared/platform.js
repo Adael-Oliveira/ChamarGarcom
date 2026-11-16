@@ -6,7 +6,7 @@ export const PLATFORM_NAME = 'Acenai';
 export const PLANS = [
   { id: 'essencial', name: 'Essencial', price: '99,90', tables: 10 },
   { id: 'profissional', name: 'Profissional', price: '149,90', tables: 30, highlight: true },
-  { id: 'avancado', name: 'Avançado', price: '249,90', tables: 60, extras: ['Cardápio'] },
+  { id: 'avancado', name: 'Avançado', price: '249,90', tables: 60, extras: ['Cardápio em PDF ou link, além do digital'] },
 ];
 export const SETUP_FEE = '297,00';
 
@@ -21,6 +21,6 @@ export const WATCH_OFFER = {
 export const planById = (id) => PLANS.find((p) => p.id === id) || null;
 /** Limite de mesas do plano; null = restaurante sem plano definido (sem limite). */
 export const planTables = (id) => planById(id)?.tables ?? null;
-/** Cardápio: só no Avançado (e nos restaurantes sem plano definido). */
+/** Cardápio em PDF/link: só no Avançado (e nos restaurantes sem plano definido). O cardápio digital com pedidos vale para todos. */
 export const planHasMenu = (id) => !id || id === 'avancado';
 export const planLimitMessage = (id) => `O plano ${planById(id)?.name || ''} permite até ${planTables(id)} mesas. Fale com a gente para ampliar.`;

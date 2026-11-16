@@ -1,8 +1,9 @@
-import { StrictMode } from 'react';
+import { StrictMode, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import '../shared/fonts';
 import '../shared/base.css';
 import '../client/table-view.css';
+import '../client/order-flow.css';
 import './landing.css';
 import { isDemo } from '../lib/api';
 import { BASE } from '../lib/env';
@@ -16,6 +17,8 @@ import scrCall2 from './relogio-tela-chamada2.webp';
 import scrOk from './relogio-tela-caminho.webp';
 import { Icon } from '../shared/ui/Icon';
 import TableView from '../client/TableView';
+import OrderFlow from '../client/OrderFlow';
+import { sampleMenu } from '../shared/sample-menu';
 import { ContactButtons, LeadForm, useContacts, waLink } from '../shared/ui/Contact';
 
 // Link antigo no formato /?id=TOKEN → página da mesa
@@ -31,7 +34,7 @@ function Plans({ whatsapp }) {
   return (
     <section className="lp-plans" id="planos" aria-labelledby="planos-t">
       <h2 id="planos-t">Planos</h2>
-      <p className="lp-plans-sub">Escolha pelo tamanho do seu salão. Em todos: página da mesa com a sua marca, painel de atendimento com alerta sonoro e relatórios.</p>
+      <p className="lp-plans-sub">Escolha pelo tamanho do seu salão. Em todos: página da mesa com a sua marca, cardápio digital com pedidos, painel de atendimento com alerta sonoro e relatórios.</p>
       <div className="lp-plan-grid">
         {PLANS.map((p) => (
           <article key={p.id} className={`lp-plan ${p.highlight ? 'is-hl' : ''}`}>
@@ -59,6 +62,66 @@ function Plans({ whatsapp }) {
       <p className="lp-setup">
         Taxa de implantação: <strong>R$ {SETUP_FEE}</strong> · pagamento único
       </p>
+    </section>
+  );
+}
+
+const SAMPLE_MENU = sampleMenu();
+const sampleImage = (id) => Promise.resolve(SAMPLE_MENU.images[id] || null);
+
+/** Cardápio digital: o visitante pode mexer no exemplo (nada é enviado). */
+function OrderingSection() {
+  const [cart, setCart] = useState([]);
+  const [screen, setScreen] = useState('menu');
+  return (
+    <section className="lp-order" id="cardapio" aria-labelledby="cardapio-t">
+      <div className="lp-order-visual">
+        <div className="lp-phone lp-phone-order">
+          <OrderFlow
+            brand={SAMPLE2}
+            table={{ number: 7 }}
+            menu={SAMPLE_MENU.menu}
+            getImage={sampleImage}
+            cart={cart}
+            setCart={setCart}
+            orders={[]}
+            approval={false}
+            screen={screen}
+            setScreen={(s) => setScreen(s || 'menu')}
+            onSend={async () => ({ ok: false, error: 'Isto é só um exemplo. No seu restaurante, o pedido vai direto para a cozinha.' })}
+            onBill={() => {}}
+            canBill={false}
+          />
+        </div>
+        <p className="lp-order-hint">Experimente: toque num item e monte o pedido.</p>
+      </div>
+      <div className="lp-order-copy">
+        <span className="lp-watch-tag">Em todos os planos</span>
+        <h2 id="cardapio-t">Cardápio digital com pedido pela mesa.</h2>
+        <p className="lp-watch-lead">
+          Na mesma página da mesa, o cliente vê o cardápio com fotos e preços, escolhe e envia o pedido. A comanda chega na central e, se quiser, sai impressa na cozinha. O garçom continua levando os pratos, só não precisa anotar.
+        </p>
+        <ul className="lp-watch-list">
+          <li>
+            <Icon name="check" size={18} /> Você cadastra categorias, itens, preços e fotos (opcional) na central
+          </li>
+          <li>
+            <Icon name="check" size={18} /> Opções como sabor e ponto da carne, e observação em cada item
+          </li>
+          <li>
+            <Icon name="check" size={18} /> O cliente acompanha: recebido, em preparo e pronto
+          </li>
+          <li>
+            <Icon name="check" size={18} /> Se preferir, o caixa aprova cada pedido antes de ir para a cozinha
+          </li>
+          <li>
+            <Icon name="check" size={18} /> Comanda em impressora térmica Bluetooth na cozinha (opcional)
+          </li>
+        </ul>
+        <a className="btn btn-dark btn-lg" href="#quero">
+          Quero ver no meu restaurante <Icon name="arrowRight" size={18} />
+        </a>
+      </div>
     </section>
   );
 }
@@ -199,6 +262,8 @@ function Landing() {
           </li>
         </ol>
       </section>
+
+      <OrderingSection />
 
       <WatchOffer whatsapp={contacts?.whatsapp} />
 

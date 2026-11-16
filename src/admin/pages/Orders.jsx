@@ -4,7 +4,7 @@ import { useAdmin } from '../AdminApp';
 import { useNow, useWatch } from '../hooks';
 import { fmtTime } from '../../shared/format';
 import { MAX_STAFF_NAME, cleanStaffName } from '../../shared/model';
-import { ORDER_STATUS, brl, countsInBill, linesCount, orderCode } from '../../shared/orders';
+import { ORDER_STATUS, brl, countsInBill, linesCount, needsPrint, orderCode } from '../../shared/orders';
 import { Icon } from '../../shared/ui/Icon';
 import { Confirm } from '../../shared/ui/Modal';
 import { Empty, PageHeader, Panel, Stat } from '../components/Page';
@@ -304,7 +304,7 @@ export default function Orders() {
         </Panel>
       )}
 
-      {isDemo && printers.length > 0 && list.some((o) => !o.printed && o.status === ORDER_STATUS.NEW) && (
+      {isDemo && printers.length > 0 && list.some(needsPrint) && (
         <div className="banner banner-alert" role="note">
           <span>
             <Icon name="print" size={18} /> Demonstração: não há impressora de verdade.
