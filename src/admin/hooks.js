@@ -224,3 +224,56 @@ export function useLocalPref(key, initial) {
   };
   return [v, set];
 }
+
+// ============================================================ pedidos do cardápio digital
+/** Pedidos desde o início do dia (ou últimas 12 h), em tempo real. */
+export function useRecentOrders(rid) {
+  const [hour, setHour] = useState(() => Math.floor(Date.now() / 3600000));
+  useEffect(() => {
+    const t = setInterval(() => setHour(Math.floor(Date.now() / 3600000)), 60000);
+    return () => clearInterval(t);
+  }, []);
+  const since = useMemo(() => {
+    const today = startOfDay();
+    const h12 = new Date(Date.now() - 12 * 3600000);
+    return today < h12 ? today : h12;
+  }, [hour]); // eslint-disable-line
+  return useWatch((ok, err) => api.watchOrdersSince(rid, since, ok, err), [rid, since.getTime()], []);
+}
+
+/** Toca e avisa no computador quando chega um pedido novo (ou um para aprovar). */
+export function useNewOrderAlert(orders, loading, soundOn, brandName) {
+  const seen = useRef(null);
+  useEffect(() => {
+    if (loading) return;
+    if (seen.current === null) {
+      seen.current = new Set(orders.map((o) => o.id));
+      return;
+    }
+    const fresh = orders.filter((o) => !seen.current.has(o.id) && (o.status === 'NEW' || o.status === 'WAITING'));
+    orders.forEach((o) => seen.current.add(o.id));
+    if (!fresh.length) return;
+    if (soundOn) {
+      chime(true);
+      setTimeout(() => chime(true), 900);
+    }
+    if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+      fresh.forEach((o) => {
+        try {
+          const n = new Notification(`Mesa ${o.tableNumber} · ${o.status === 'WAITING' ? 'Pedido para aprovar' : 'Novo pedido'}`, {
+            body: `${o.items.reduce((a, l) => a + l.qty, 0)} itens · ${brandName}`,
+            icon: ICON,
+            tag: `pedido-${o.id}`,
+          });
+          n.onclick = () => {
+            window.focus();
+            window.location.hash = '/pedidos';
+            n.close();
+          };
+        } catch {
+          /* sem notificação */
+        }
+      });
+    }
+  }, [orders, loading, soundOn, brandName]);
+}

@@ -8,6 +8,7 @@
 // =====================================================================
 import { planHasMenu, planLimitMessage, planTables } from '../../shared/platform';
 import { CALL_STATUS, DEFAULT_BRAND, DEFAULT_SETTINGS, cleanPerms, cleanStaffName, generateToken, normalizeEmail } from '../../shared/model';
+import { EMPTY_MENU, ORDER_COOLDOWN_SEC, ORDER_STATUS, sanitizeMenu } from '../../shared/orders';
 
 const KEY = 'chamar-garcom:demo:v3';
 const SESSION = 'chamar-garcom:demo:user';
@@ -32,6 +33,72 @@ function safe(storageName) {
 const LS = safe('localStorage');
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 const MIN = 60000;
+
+// ---------------------------------------------------------------- cardápio de exemplo
+// Fotos de exemplo: ilustração simples (emoji sobre fundo colorido), só na demonstração.
+const photo = (emoji, bg) =>
+  'data:image/svg+xml;charset=utf-8,' +
+  encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300"><rect width="400" height="300" fill="${bg}"/><text x="200" y="190" font-size="150" text-anchor="middle">${emoji}</text></svg>`);
+function seedMenu() {
+  const images = {};
+  const it = (id, name, desc, price, extra = {}) => {
+    const { e, bg, ...rest } = extra;
+    if (e) images['f-' + id] = photo(e, bg);
+    return { id, name, desc, price, available: true, img: e ? 'f-' + id : null, tag: null, opts: null, ...rest };
+  };
+  const menu = {
+    categories: [
+      { id: 'entradas', name: 'Entradas', items: [
+        it('bac', 'Bolinho de bacalhau', '6 unidades, com maionese de ervas.', 3800, { e: '🧆', bg: '#f6e3c4' }),
+        it('siri', 'Casquinha de siri', 'Gratinada com queijo e farofa da casa.', 2900, { e: '🦀', bg: '#fde2d6' }),
+        it('pas', 'Pastel de camarão', '4 unidades.', 3400),
+      ] },
+      { id: 'pratos', name: 'Pratos', items: [
+        it('moq', 'Moqueca de peixe', 'Serve 2 pessoas. Acompanha arroz, pirão e farofa.', 12900, { e: '🍲', bg: '#fde7c8', tag: 'Mais pedido' }),
+        it('ris', 'Risoto de camarão', 'Arroz arbóreo, camarão e limão-siciliano.', 7900, { e: '🍤', bg: '#fbe3dc' }),
+        it('pei', 'Peixe grelhado', 'Com legumes salteados e arroz de brócolis.', 6800, { e: '🐟', bg: '#dcecf2', opts: { title: 'Ponto do peixe', choices: ['Ao ponto', 'Bem passado'] } }),
+        it('par', 'Filé à parmegiana', 'Com arroz e batata frita.', 7200),
+      ] },
+      { id: 'bebidas', name: 'Bebidas', items: [
+        it('suc', 'Suco natural', '500 ml.', 1200, { e: '🍹', bg: '#fdf0c4', opts: { title: 'Sabor', choices: ['Laranja', 'Limão', 'Abacaxi com hortelã'] } }),
+        it('ref', 'Refrigerante lata', '350 ml.', 700, { opts: { title: 'Qual', choices: ['Cola', 'Cola zero', 'Guaraná'] } }),
+        it('cho', 'Chope', '300 ml.', 1400, { e: '🍺', bg: '#fbefc9' }),
+        it('agu', 'Água mineral', 'Com ou sem gás.', 600, { opts: { title: 'Tipo', choices: ['Sem gás', 'Com gás'] } }),
+      ] },
+      { id: 'sobremesas', name: 'Sobremesas', items: [
+        it('pud', 'Pudim de leite', 'Fatia.', 1600, { e: '🍮', bg: '#f8e5c3' }),
+        it('pet', 'Petit gâteau', 'Com sorvete de creme.', 2600, { e: '🍫', bg: '#ead8cf' }),
+      ] },
+    ],
+  };
+  return { menu, images };
+}
+function seedOrders(now) {
+  const L = (id, name, price, qty, opt = null, obs = null) => ({ id, name, price, qty, opt, obs });
+  const o = (tableNumber, minAgo, status, items, extra = {}) => ({
+    id: uid() + tableNumber,
+    tableId: 'm' + tableNumber,
+    tableNumber,
+    items,
+    total: items.reduce((a, l) => a + l.price * l.qty, 0),
+    note: null,
+    status,
+    createdAt: now - minAgo * MIN,
+    statusAt: status === 'NEW' ? null : now - (minAgo - 2) * MIN,
+    statusByName: status === 'NEW' ? null : 'Bia',
+    printed: true,
+    printedAt: now - minAgo * MIN + 4000,
+    printCount: 1,
+    closed: false,
+    closedAt: null,
+    ...extra,
+  });
+  return [
+    o(1, 70, 'DELIVERED', [L('moq', 'Moqueca de peixe', 12900, 1, null, 'sem coentro'), L('cho', 'Chope', 1400, 2)]),
+    o(6, 18, 'PREPARING', [L('ris', 'Risoto de camarão', 7900, 2), L('suc', 'Suco natural', 1200, 2, 'Laranja')]),
+    o(2, 3, 'NEW', [L('bac', 'Bolinho de bacalhau', 3800, 1), L('ref', 'Refrigerante lata', 700, 2, 'Guaraná')]),
+  ];
+}
 
 // ---------------------------------------------------------------- dados de exemplo
 function seed() {
@@ -80,13 +147,17 @@ function seed() {
     invites: { 'garcom@exemplo.com': { restaurantId: RID, role: 'staff', displayName: 'Lucas', perms: [], createdBy: DEMO_USER.uid, createdAt: now - 3 * 3600000 } },
     tableLinks,
     restaurants: { [RID]: { name: 'Bistrô do Porto', ownerUid: DEMO_USER.uid } },
-    settings: { [RID]: { ...DEFAULT_SETTINGS } },
+    settings: { [RID]: { ...DEFAULT_SETTINGS, ordersEnabled: true } },
     brand: {
       [RID]: { ...DEFAULT_BRAND, name: 'Bistrô do Porto', tagline: 'Cozinha de mar, mesa de casa', primary: '#0B5B73', accent: '#5EEAD4', style: 'classico' },
     },
     tables: { [RID]: tables },
     tableState: { [RID]: tableState },
     calls: { [RID]: calls },
+    ...(() => {
+      const m = seedMenu();
+      return { menu: { [RID]: m.menu }, menuImages: { [RID]: m.images }, orders: { [RID]: seedOrders(now) }, orderState: { [RID]: {} } };
+    })(),
     leads: [
       { id: 'l1', name: 'Marina Costa', restaurant: 'Café da Praça', city: 'Osasco', phone: '11988887777', email: 'marina@exemplo.com', message: 'Tenho 12 mesas e queria testar.', status: 'new', createdAt: now - 2 * 3600000 },
       { id: 'l2', name: 'Rafael Lima', restaurant: 'Pizzaria Forno Velho', city: 'Barueri', phone: '11977776666', email: null, message: null, status: 'contacted', createdAt: now - 26 * 3600000 },
@@ -102,6 +173,15 @@ function load() {
     if (raw && raw.restaurants) {
       raw.leads ||= [];
       if (!('contacts' in raw)) raw.contacts = null;
+      // demonstrações abertas antes do cardápio digital ganham o cardápio de exemplo
+      if (!raw.menu) {
+        const m = seedMenu();
+        raw.menu = { [RID]: m.menu };
+        raw.menuImages = { [RID]: m.images };
+        raw.orders = { [RID]: seedOrders(Date.now()) };
+        raw.orderState = { [RID]: {} };
+        if (raw.settings[RID]) raw.settings[RID].ordersEnabled = true;
+      }
       return raw;
     }
   } catch {
@@ -151,6 +231,7 @@ function watch(fn) {
 
 const D = (ms) => (ms ? new Date(ms) : null);
 const outCall = (c) => ({ ...c, calledAt: D(c.calledAt), viewedAt: D(c.viewedAt), doneAt: D(c.doneAt) });
+const outOrder = (o) => ({ ...o, createdAt: D(o.createdAt), statusAt: D(o.statusAt), printedAt: D(o.printedAt), closedAt: D(o.closedAt) });
 const delay = (ms = 120) => new Promise((r) => setTimeout(r, ms));
 
 // ---------------------------------------------------------------- cardápio PDF (IndexedDB)
@@ -280,6 +361,7 @@ const api = {
       d.tables[rid] = d.tables[rid].filter((y) => y.id !== t.id);
       delete d.tableLinks[t.token];
       delete d.tableState[rid][t.id];
+      if (d.orderState?.[rid]) delete d.orderState[rid][t.id];
     });
   },
 
@@ -319,6 +401,41 @@ const api = {
     return blob ? URL.createObjectURL(blob) : null;
   },
 
+  // ---------- cardápio digital ----------
+  watchMenu: (rid, cb) => watch((d) => cb(d.menu?.[rid] ? sanitizeMenu(d.menu[rid]) : EMPTY_MENU)),
+  saveMenu: async (rid, menu) => commit((d) => ((d.menu ||= {})[rid] = sanitizeMenu(menu))),
+  async saveMenuImage(rid, dataUrl) {
+    const id = 'f' + uid();
+    commit((d) => (((d.menuImages ||= {})[rid] ||= {})[id] = dataUrl));
+    return id;
+  },
+  deleteMenuImage: async (rid, id) => commit((d) => delete d.menuImages?.[rid]?.[id]),
+  getMenuImage: async (rid, id) => db.menuImages?.[rid]?.[id] || null,
+
+  // ---------- pedidos ----------
+  watchOrdersSince: (rid, since, cb) =>
+    watch((d) => cb((d.orders?.[rid] || []).filter((o) => o.createdAt >= since.getTime()).sort((a, b) => b.createdAt - a.createdAt).map(outOrder))),
+  setOrderStatus: async (rid, id, status, who) =>
+    commit((d) => {
+      const o = d.orders[rid].find((x) => x.id === id);
+      if (o) Object.assign(o, { status, statusAt: Date.now(), statusByName: cleanStaffName(who?.name) || null });
+    }),
+  reprintOrder: async (rid, id) =>
+    commit((d) => {
+      const o = d.orders[rid].find((x) => x.id === id);
+      if (o) o.printed = false;
+    }),
+  closeBill: async (rid, ids) =>
+    commit((d) => {
+      for (const o of d.orders[rid]) if (ids.includes(o.id)) Object.assign(o, { closed: true, closedAt: Date.now() });
+    }),
+  /** Só na demonstração: simula a impressora imprimindo os pedidos pendentes. */
+  demoPrintPending: async (rid) =>
+    commit((d) => {
+      for (const o of d.orders[rid] || [])
+        if (!o.printed && o.status === ORDER_STATUS.NEW) Object.assign(o, { printed: true, printedAt: Date.now(), printCount: (o.printCount || 0) + 1 });
+    }),
+
   watchTeam: (rid, cb) =>
     watch((d) =>
       cb({
@@ -349,13 +466,24 @@ const api = {
       else delete a.displayName;
       if (a.role === 'staff') a.perms = cleanPerms(perms);
     }),
-  async pairDevice(rid, code, displayName) {
-    if (String(code || '').replace(/\D/g, '').length !== 6) throw new Error('O código do relógio tem 6 números.');
+  async pairDevice(rid, code, displayName, kind = 'watch') {
+    const printer = kind === 'printer';
+    if (String(code || '').replace(/\D/g, '').length !== 6) throw new Error(printer ? 'O código da impressora tem 6 números.' : 'O código do relógio tem 6 números.');
     const name = cleanStaffName(displayName);
-    if (!name) throw new Error('Dê um nome para o relógio. Ex.: Relógio do dono.');
+    if (!name) throw new Error(printer ? 'Dê um nome para a impressora. Ex.: Cozinha.' : 'Dê um nome para o relógio. Ex.: Relógio do dono.');
     await delay(300);
     commit((d) => {
-      d.admins['demo-relogio-' + uid()] = { restaurantId: rid, role: 'staff', email: '', name: 'Relógio', displayName: name, perms: [], device: true, createdAt: Date.now() };
+      d.admins['demo-' + (printer ? 'impressora-' : 'relogio-') + uid()] = {
+        restaurantId: rid,
+        role: 'staff',
+        email: '',
+        name: printer ? 'Impressora' : 'Relógio',
+        displayName: name,
+        perms: [],
+        device: true,
+        kind: printer ? 'printer' : 'watch',
+        createdAt: Date.now(),
+      };
     });
   },
   revokeInvite: async (email) => commit((d) => delete d.invites[normalizeEmail(email)]),
@@ -393,6 +521,10 @@ const api = {
       d.tables[rid] = [];
       d.tableState[rid] = {};
       d.calls[rid] = [];
+      d.menu[rid] = EMPTY_MENU;
+      d.menuImages[rid] = {};
+      d.orders[rid] = [];
+      d.orderState[rid] = {};
       d.invites[email] = { restaurantId: rid, role: 'owner', createdBy: by, createdAt: Date.now() };
       return rid;
     });
@@ -421,7 +553,7 @@ const api = {
       for (const t of d.tables[rid] || []) delete d.tableLinks[t.token];
       for (const [u, a] of Object.entries(d.admins)) if (a.restaurantId === rid) delete d.admins[u];
       for (const [e, i] of Object.entries(d.invites)) if (i.restaurantId === rid) delete d.invites[e];
-      ['restaurants', 'settings', 'brand', 'tables', 'tableState', 'calls'].forEach((k) => delete d[k][rid]);
+      ['restaurants', 'settings', 'brand', 'tables', 'tableState', 'calls', 'menu', 'menuImages', 'orders', 'orderState'].forEach((k) => d[k] && delete d[k][rid]);
     }),
 
   async createLead(data) {
@@ -453,6 +585,45 @@ const api = {
       const c = (d.calls[rid] || []).find((x) => x.id === callId);
       cb(c ? outCall(c) : null);
     }),
+  watchOrder: (rid, id, cb) =>
+    watch((d) => {
+      const o = (d.orders?.[rid] || []).find((x) => x.id === id);
+      cb(o ? outOrder(o) : null);
+    }),
+  /** Mesmas verificações que as regras do Firestore fazem no servidor. */
+  async createOrder({ token, items, total, note }) {
+    await delay(300);
+    return commit((d) => {
+      const link = d.tableLinks[token];
+      if (!link || !link.active) return { error: 'rejected' };
+      const rid = link.restaurantId;
+      const s = d.settings[rid];
+      if (!s.ordersEnabled || s.suspended || !items.length) return { error: 'rejected' };
+      const st = (d.orderState[rid] ||= {})[link.tableId];
+      const now = Date.now();
+      if (st && now < st.lastOrderAt + ORDER_COOLDOWN_SEC * 1000) return { error: 'cooldown' };
+      const o = {
+        id: uid(),
+        tableId: link.tableId,
+        tableNumber: link.number,
+        items,
+        total,
+        note: note || null,
+        status: s.ordersApproval ? ORDER_STATUS.WAITING : ORDER_STATUS.NEW,
+        createdAt: now,
+        statusAt: null,
+        statusByName: null,
+        printed: false,
+        printedAt: null,
+        printCount: 0,
+        closed: false,
+        closedAt: null,
+      };
+      d.orders[rid].push(o);
+      d.orderState[rid][link.tableId] = { lastOrderId: o.id, lastOrderAt: now };
+      return { ok: true, orderId: o.id };
+    });
+  },
   /** Mesmas verificações que as regras do Firestore fazem no servidor. */
   async createCall({ token, reason }) {
     await delay(250);

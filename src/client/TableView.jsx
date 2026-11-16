@@ -2,6 +2,7 @@ import BrandMark from '../shared/ui/BrandMark';
 import { brandVars } from '../lib/theme/brand';
 import { fmtCountdown } from '../shared/format';
 import { PLATFORM_NAME } from '../shared/platform';
+import { ORDER_LABEL_CLIENT, orderCode } from '../shared/orders';
 
 function Bell({ size = 40 }) {
   return (
@@ -51,6 +52,11 @@ export default function TableView({
   menuAvailable = false,
   onCall,
   onMenu,
+  ordering = false,
+  liveOrder = null,
+  ordersCount = 0,
+  onOrder,
+  onOrders,
   preview = false,
 }) {
   const enabled = settings.callsEnabled && table.active !== false;
@@ -60,13 +66,13 @@ export default function TableView({
   const isBill = reason === 'bill';
   const noTab = preview ? -1 : undefined;
 
-  let hint = 'Toque no botão e um garçom vem até você.';
+  let hint = ordering ? 'Para dúvidas, talheres ou qualquer ajuda.' : 'Toque no botão e um garçom vem até você.';
   if (!enabled) hint = '';
   else if (busy) hint = 'Enviando o seu pedido…';
   else if (cooldownMs > 0) hint = '';
 
   return (
-    <div className={`tv tv-${phase} ${waiting ? 'is-waiting' : ''} ${preview ? 'tv-preview' : ''}`} style={brandVars(brand)}>
+    <div className={`tv tv-${phase} ${waiting ? 'is-waiting' : ''} ${ordering ? 'has-order' : ''} ${preview ? 'tv-preview' : ''}`} style={brandVars(brand)}>
       <header className="tv-head">
         <BrandMark brand={brand} size={48} className="tv-logo" />
         <div className="tv-brand">
@@ -101,6 +107,33 @@ export default function TableView({
           </div>
         )}
 
+        {ordering && liveOrder && (
+          <button type="button" className="tv-live" onClick={() => !preview && onOrders?.()} tabIndex={noTab}>
+            <span className={`tv-live-dot is-${liveOrder.status}`} aria-hidden="true" />
+            <span>
+              <strong>
+                Pedido {orderCode(liveOrder.id)} · {ORDER_LABEL_CLIENT[liveOrder.status]}
+              </strong>
+              <small>{liveOrder.count} {liveOrder.count === 1 ? 'item' : 'itens'} · toque para acompanhar</small>
+            </span>
+            <em>Ver</em>
+          </button>
+        )}
+        {ordering && !waiting && (
+          <button type="button" className="tv-order" onClick={() => !preview && onOrder?.()} tabIndex={noTab}>
+            <span className="tv-order-icon">
+              <MenuIcon />
+            </span>
+            <span>
+              <strong>Ver cardápio e pedir</strong>
+              <small>Escolha e envie direto para a cozinha</small>
+            </span>
+            <span className="tv-order-go" aria-hidden="true">
+              ›
+            </span>
+          </button>
+        )}
+
         {table.active === false ? (
           <p className="tv-alert">Esta mesa está temporariamente indisponível para chamadas.</p>
         ) : !settings.callsEnabled ? (
@@ -130,9 +163,15 @@ export default function TableView({
             <Receipt /> Pedir a conta
           </button>
         )}
-        <button type="button" className="tv-menu" disabled={!menuAvailable} onClick={() => !preview && onMenu?.()} tabIndex={noTab}>
-          <MenuIcon /> {menuAvailable ? 'Cardápio' : 'Sem cardápio'}
-        </button>
+        {ordering ? (
+          <button type="button" className="tv-menu" onClick={() => !preview && onOrders?.()} tabIndex={noTab}>
+            Meus pedidos {ordersCount > 0 && <span className="tv-count">{ordersCount}</span>}
+          </button>
+        ) : (
+          <button type="button" className="tv-menu" disabled={!menuAvailable} onClick={() => !preview && onMenu?.()} tabIndex={noTab}>
+            <MenuIcon /> {menuAvailable ? 'Cardápio' : 'Sem cardápio'}
+          </button>
+        )}
       </nav>
 
       <footer className="tv-foot">{PLATFORM_NAME}</footer>

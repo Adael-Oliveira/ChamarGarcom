@@ -13,6 +13,10 @@
 //  restaurants/{rid}/tables/{id}        → mesas (só admin)
 //  restaurants/{rid}/tableState/{id}    → última chamada da mesa (intervalo no servidor)
 //  restaurants/{rid}/calls/{id}         → chamadas
+//  restaurants/{rid}/settings/menu      → cardápio digital (categorias e itens, público)
+//  restaurants/{rid}/menuImages/{id}    → fotos dos itens (data URL pequena, público)
+//  restaurants/{rid}/orders/{id}        → pedidos feitos pela mesa
+//  restaurants/{rid}/orderState/{id}    → último pedido da mesa (intervalo mínimo no servidor)
 // =====================================================================
 import { initializeApp } from 'firebase/app';
 import {
@@ -51,6 +55,7 @@ import {
 import { firebaseConfig, useEmulators } from '../env';
 import { planHasMenu, planLimitMessage, planTables } from '../../shared/platform';
 import { CALL_STATUS, DEFAULT_BRAND, DEFAULT_SETTINGS, cleanPerms, cleanStaffName, generateToken, normalizeEmail } from '../../shared/model';
+import { EMPTY_MENU, ORDER_STATUS, sanitizeMenu } from '../../shared/orders';
 
 const config = useEmulators
   ? { apiKey: 'demo-key', authDomain: 'localhost', projectId: 'demo-chamar-garcom', storageBucket: 'demo-chamar-garcom.appspot.com', appId: 'demo' }
@@ -103,6 +108,12 @@ const P = {
   state: (rid, id) => doc(db, 'restaurants', rid, 'tableState', id),
   calls: (rid) => collection(db, 'restaurants', rid, 'calls'),
   call: (rid, id) => doc(db, 'restaurants', rid, 'calls', id),
+  menu: (rid) => doc(db, 'restaurants', rid, 'settings', 'menu'),
+  menuImages: (rid) => collection(db, 'restaurants', rid, 'menuImages'),
+  menuImage: (rid, id) => doc(db, 'restaurants', rid, 'menuImages', id),
+  orders: (rid) => collection(db, 'restaurants', rid, 'orders'),
+  order: (rid, id) => doc(db, 'restaurants', rid, 'orders', id),
+  orderState: (rid, id) => doc(db, 'restaurants', rid, 'orderState', id),
 };
 
 const toDate = (t) => (t && typeof t.toDate === 'function' ? t.toDate() : t instanceof Date ? t : null);
@@ -134,6 +145,27 @@ function normCall(snap) {
   };
 }
 
+function normOrder(snap) {
+  const d = snap.data({ serverTimestamps: 'estimate' });
+  return {
+    id: snap.id,
+    tableId: d.tableId,
+    tableNumber: d.tableNumber,
+    items: Array.isArray(d.items) ? d.items : [],
+    total: d.total || 0,
+    note: d.note || null,
+    status: d.status,
+    createdAt: toDate(d.createdAt),
+    statusAt: toDate(d.statusAt),
+    statusByName: d.statusByName || null,
+    printed: !!d.printed,
+    printedAt: toDate(d.printedAt),
+    printCount: d.printCount || 0,
+    closed: !!d.closed,
+    closedAt: toDate(d.closedAt),
+  };
+}
+
 function userOf(u) {
   return u && { uid: u.uid, email: normalizeEmail(u.email), name: u.displayName || '', photo: u.photoURL || null };
 }
@@ -146,6 +178,25 @@ function friendly(e) {
   return e;
 }
 const wrap = (p) => p.catch((e) => Promise.reject(friendly(e)));
+
+/** Grava um lote do cliente (sem login) com tempo-limite: sem sinal, avisa em vez de ficar girando. */
+async function clientCommit(b) {
+  let timer;
+  try {
+    await Promise.race([
+      b.commit(),
+      new Promise((_, rej) => {
+        timer = setTimeout(() => rej(Object.assign(new Error('timeout'), { code: 'network' })), 15000);
+      }),
+    ]);
+    return { ok: true };
+  } catch (e) {
+    if (e.code === 'network' || e.code === 'unavailable') return { error: 'network' };
+    return { error: 'rejected' };
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 // ---------------------------------------------------------------- api
 const api = {
@@ -323,6 +374,7 @@ const api = {
     if (r.plan) b.update(P.restaurant(rid), { tableCount: increment(-1), tableOp: t.id });
     b.delete(P.link(t.token));
     b.delete(P.state(rid, t.id));
+    b.delete(P.orderState(rid, t.id));
     await wrap(b.commit());
   },
 
@@ -381,6 +433,47 @@ const api = {
   },
   resolveMenuUrl: async (settings) => settings.menuUrl || null,
 
+  // ---------- cardápio digital ----------
+  watchMenu(rid, cb, onError) {
+    return onSnapshot(
+      P.menu(rid),
+      (s) => cb(s.exists() ? sanitizeMenu(s.data()) : EMPTY_MENU),
+      (e) => onError?.(friendly(e)),
+    );
+  },
+  saveMenu: (rid, menu) => wrap(setDoc(P.menu(rid), { categories: sanitizeMenu(menu).categories, updatedAt: serverTimestamp() })),
+  /** Guarda a foto (já comprimida) e devolve o id. */
+  async saveMenuImage(rid, dataUrl) {
+    const ref = doc(P.menuImages(rid));
+    await wrap(setDoc(ref, { data: dataUrl }));
+    return ref.id;
+  },
+  deleteMenuImage: (rid, id) => wrap(deleteDoc(P.menuImage(rid, id))).catch(() => {}),
+  async getMenuImage(rid, id) {
+    const s = await getDoc(P.menuImage(rid, id)).catch(() => null);
+    return s?.data()?.data || null;
+  },
+
+  // ---------- pedidos ----------
+  watchOrdersSince(rid, since, cb, onError) {
+    const q = query(P.orders(rid), where('createdAt', '>=', Timestamp.fromDate(since)), orderBy('createdAt', 'desc'), limit(500));
+    return onSnapshot(
+      q,
+      (s) => cb(s.docs.map(normOrder)),
+      (e) => onError?.(friendly(e)),
+    );
+  },
+  setOrderStatus: (rid, id, status, who) =>
+    wrap(updateDoc(P.order(rid, id), { status, statusAt: serverTimestamp(), statusBy: who.uid, statusByName: cleanStaffName(who.name) })),
+  reprintOrder: (rid, id) => wrap(updateDoc(P.order(rid, id), { printed: false })),
+  async closeBill(rid, orderIds) {
+    for (let i = 0; i < orderIds.length; i += 400) {
+      const b = writeBatch(db);
+      orderIds.slice(i, i + 400).forEach((id) => b.update(P.order(rid, id), { closed: true, closedAt: serverTimestamp() }));
+      await wrap(b.commit());
+    }
+  },
+
   // ---------- equipe ----------
   watchTeam(rid, cb, onError) {
     let members = [];
@@ -422,17 +515,30 @@ const api = {
     return wrap(updateDoc(P.admin(uid), patch));
   },
   /** Conecta um relógio: o código aparece na tela do aparelho e vale 15 minutos. */
-  async pairDevice(rid, code, displayName) {
+  async pairDevice(rid, code, displayName, kind = 'watch') {
     const c = String(code || '').replace(/\D/g, '');
     if (c.length !== 6) throw new Error('O código do relógio tem 6 números.');
     const name = cleanStaffName(displayName);
-    if (!name) throw new Error('Dê um nome para o relógio. Ex.: Relógio do dono.');
+    if (!name) throw new Error(kind === 'printer' ? 'Dê um nome para a impressora. Ex.: Cozinha.' : 'Dê um nome para o relógio. Ex.: Relógio do dono.');
     const snap = await getDoc(P.pairing(c)).catch((e) => Promise.reject(friendly(e)));
     const p = snap.data();
-    if (!snap.exists() || !p?.uid) throw new Error('Código não encontrado. Confira o número na tela do relógio.');
-    if (Date.now() - toDate(p.createdAt).getTime() > 14 * 60000) throw new Error('Esse código expirou. Reinicie o relógio para gerar outro.');
+    const where_ = kind === 'printer' ? 'no papel impresso pela impressora' : 'na tela do relógio';
+    if (!snap.exists() || !p?.uid) throw new Error(`Código não encontrado. Confira o número ${where_}.`);
+    if (Date.now() - toDate(p.createdAt).getTime() > 14 * 60000)
+      throw new Error(kind === 'printer' ? 'Esse código expirou. A impressora imprime um código novo sozinha em alguns minutos.' : 'Esse código expirou. Reinicie o relógio para gerar outro.');
     const b = writeBatch(db);
-    b.set(P.admin(p.uid), { restaurantId: rid, role: 'staff', email: '', name: 'Relógio', displayName: name, perms: [], device: true, pairCode: c, createdAt: serverTimestamp() });
+    b.set(P.admin(p.uid), {
+      restaurantId: rid,
+      role: 'staff',
+      email: '',
+      name: kind === 'printer' ? 'Impressora' : 'Relógio',
+      displayName: name,
+      perms: [],
+      device: true,
+      kind: kind === 'printer' ? 'printer' : 'watch',
+      pairCode: c,
+      createdAt: serverTimestamp(),
+    });
     b.delete(P.pairing(c));
     await wrap(b.commit());
   },
@@ -540,7 +646,7 @@ const api = {
 
   /** Exclui o restaurante e tudo dele (mesas, QR Codes, chamadas, marca, equipe, convites). */
   async deleteRestaurant(rid, onProgress) {
-    const [tables, states, calls, admins, invites, settings] = await wrap(
+    const [tables, states, calls, admins, invites, settings, orders, orderStates, images] = await wrap(
       Promise.all([
         getDocs(P.tables(rid)),
         getDocs(collection(db, 'restaurants', rid, 'tableState')),
@@ -548,10 +654,17 @@ const api = {
         getDocs(query(P.admins(), where('restaurantId', '==', rid))),
         getDocs(query(P.invites(), where('restaurantId', '==', rid))),
         getDoc(P.settings(rid)),
+        getDocs(P.orders(rid)),
+        getDocs(collection(db, 'restaurants', rid, 'orderState')),
+        getDocs(P.menuImages(rid)),
       ]),
     );
     const refs = [
       ...calls.docs.map((d) => d.ref),
+      ...orders.docs.map((d) => d.ref),
+      ...orderStates.docs.map((d) => d.ref),
+      ...images.docs.map((d) => d.ref),
+      P.menu(rid),
       ...states.docs.map((d) => d.ref),
       ...tables.docs.map((d) => P.link(d.data().token)),
       ...tables.docs.map((d) => d.ref),
@@ -644,6 +757,36 @@ const api = {
       (s) => cb(s.exists() ? normCall(s) : null),
       () => cb(null),
     );
+  },
+  watchOrder(rid, id, cb) {
+    return onSnapshot(
+      P.order(rid, id),
+      (s) => cb(s.exists() ? normOrder(s) : null),
+      () => cb(null),
+    );
+  },
+  /** Cria o pedido + o estado de pedidos da mesa (o intervalo mínimo é conferido pelas regras). */
+  async createOrder({ token, link, items, total, note, approval }) {
+    const { restaurantId: rid, tableId, number } = link;
+    const ref = doc(P.orders(rid));
+    const b = writeBatch(db);
+    b.set(ref, {
+      restaurantId: rid,
+      tableId,
+      tableNumber: number,
+      orderId: ref.id,
+      token,
+      items,
+      total,
+      note: note || null,
+      status: approval ? ORDER_STATUS.WAITING : ORDER_STATUS.NEW,
+      createdAt: serverTimestamp(),
+      printed: false,
+      printCount: 0,
+    });
+    b.set(P.orderState(rid, tableId), { lastOrderId: ref.id, lastOrderAt: serverTimestamp() });
+    const r = await clientCommit(b);
+    return r.ok ? { ok: true, orderId: ref.id } : r;
   },
   /** Cria a chamada + atualiza o estado da mesa (o intervalo é conferido pelas regras). */
   async createCall({ token, link, reason }) {

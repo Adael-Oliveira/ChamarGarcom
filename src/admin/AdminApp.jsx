@@ -8,10 +8,11 @@ import { Icon } from '../shared/ui/Icon';
 import { DemoBanner, useToast } from '../shared/ui/Feedback';
 import { ContactButtons, useContacts } from '../shared/ui/Contact';
 import { AuthCard } from './auth';
-import { alertStatus, enableAlerts, useHashRoute, useLocalPref, useNewCallAlert, useRecentCalls, useWatch } from './hooks';
+import { alertStatus, enableAlerts, useHashRoute, useLocalPref, useNewCallAlert, useNewOrderAlert, useRecentCalls, useRecentOrders, useWatch } from './hooks';
 import Dashboard from './pages/Dashboard';
 import Tables from './pages/Tables';
 import Menu from './pages/Menu';
+import Orders from './pages/Orders';
 import Brand from './pages/Brand';
 import Reports from './pages/Reports';
 import Team from './pages/Team';
@@ -22,6 +23,7 @@ export const useAdmin = () => useContext(Ctx);
 
 const NAV = [
   { id: 'painel', label: 'Painel', icon: 'grid', Page: Dashboard },
+  { id: 'pedidos', label: 'Pedidos', icon: 'receipt', Page: Orders },
   { id: 'mesas', label: 'Mesas', icon: 'table', Page: Tables, perm: 'mesas' },
   { id: 'cardapio', label: 'Cardápio', icon: 'book', Page: Menu, perm: 'cardapio' },
   { id: 'personalizar', label: 'Personalizar', icon: 'palette', Page: Brand, owner: true },
@@ -49,6 +51,7 @@ export default function AdminApp({ user, admin }) {
   const restaurant = useWatch((ok, err) => api.watchRestaurant(rid, ok, err), [rid], null);
   const plan = restaurant.data?.plan || null;
   const calls = useRecentCalls(rid);
+  const orders = useRecentOrders(rid);
   const access = useWatch((ok) => api.watchMyAccess(user.uid, ok), [user.uid], undefined);
 
   // permissões e nome valem na hora em que o Responsável muda (cadastro acompanhado ao vivo)
@@ -64,6 +67,7 @@ export default function AdminApp({ user, admin }) {
     document.documentElement.dataset.theme = theme;
   }, [theme]);
   useNewCallAlert(calls.data, calls.loading, soundOn && !admin.support, brand.name);
+  useNewOrderAlert(orders.data, orders.loading, soundOn && !admin.support, brand.name);
 
   /** Executa uma ação; mostra o erro de forma amigável. */
   const run = useCallback(
@@ -81,10 +85,12 @@ export default function AdminApp({ user, admin }) {
     [toast],
   );
 
-  const nav = NAV.filter((n) => (!n.owner || isOwner) && (!n.perm || can(n.perm)));
+  // "Pedidos" só aparece com os pedidos ligados (ou com pedidos de hoje para terminar)
+  const nav = NAV.filter((n) => (!n.owner || isOwner) && (!n.perm || can(n.perm)) && (n.id !== 'pedidos' || settings.data.ordersEnabled || orders.data.length));
   const current = nav.find((n) => n.id === route) || nav[0];
   const { Page } = current;
   const pending = calls.data.filter((c) => c.status === CALL_STATUS.PENDING).length;
+  const newOrders = orders.data.filter((o) => o.status === 'NEW' || o.status === 'WAITING').length;
   const err = settings.error || tables.error || calls.error || brandState.error;
 
   // removido da equipe ou restaurante pausado com a central aberta
@@ -107,6 +113,7 @@ export default function AdminApp({ user, admin }) {
     plan,
     tables,
     calls,
+    orders,
     run,
     toast,
     navigate,
@@ -133,6 +140,7 @@ export default function AdminApp({ user, admin }) {
                 <Icon name={n.icon} />
                 <span className="side-label">{n.label}</span>
                 {n.id === 'painel' && pending > 0 && <em className="side-badge">{pending}</em>}
+                {n.id === 'pedidos' && newOrders > 0 && <em className="side-badge">{newOrders}</em>}
               </a>
             ))}
             {admin.platformOwner && (

@@ -4,11 +4,14 @@ import '../shared/fonts';
 import '../shared/base.css';
 import './table-view.css';
 import './client.css';
+import './order-flow.css';
 import api from '../lib/api';
 import { applyBrand, sanitizeBrand } from '../lib/theme/brand';
 import { DemoBanner } from '../shared/ui/Feedback';
 import TableView from './TableView';
 import { phaseOf, useTableSession } from './useTableSession';
+import OrderFlow from './OrderFlow';
+import { useOrdering } from './useOrdering';
 
 // O link do QR Code traz o código da mesa (?id=...). Guardamos o código nesta
 // aba e limpamos o endereço: o cliente não vê nem compartilha o código.
@@ -87,6 +90,19 @@ function Page() {
   const now = useNow();
   const [menuUrl, setMenuUrl] = useState(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const ordering = useOrdering(token, s.link.data, s.settings);
+  const [screen, setScreenState] = useState(null);
+  // o botão "voltar" do celular fecha o cardápio em vez de sair da página
+  const setScreen = (next) => {
+    if (next && !screen) history.pushState({ cardapio: 1 }, '');
+    if (!next && screen && history.state?.cardapio) return history.back();
+    setScreenState(next);
+  };
+  useEffect(() => {
+    const on = () => setScreenState(null);
+    window.addEventListener('popstate', on);
+    return () => window.removeEventListener('popstate', on);
+  }, []);
 
   const brand = s.brand ? sanitizeBrand(s.brand) : null;
   useEffect(() => {
@@ -139,8 +155,33 @@ function Page() {
         menuAvailable={!!menuUrl}
         onCall={s.callWaiter}
         onMenu={openMenu}
+        ordering={ordering.enabled}
+        liveOrder={ordering.live}
+        ordersCount={ordering.orders.length}
+        onOrder={() => setScreen('menu')}
+        onOrders={() => setScreen('orders')}
       />
       {menuOpen && <MenuSheet url={menuUrl} onClose={() => setMenuOpen(false)} />}
+      {ordering.enabled && screen && (
+        <OrderFlow
+          brand={brand}
+          table={s.link.data}
+          menu={ordering.menu}
+          getImage={(id) => api.getMenuImage(s.link.data.restaurantId, id)}
+          cart={ordering.cart}
+          setCart={ordering.setCart}
+          orders={ordering.orders}
+          approval={!!s.settings.ordersApproval}
+          screen={screen}
+          setScreen={(x) => (x ? setScreenState(x) : setScreen(null))}
+          onSend={ordering.send}
+          canBill={s.settings.billEnabled && s.settings.callsEnabled && cooldownMs <= 0}
+          onBill={() => {
+            setScreen(null);
+            s.callWaiter('bill');
+          }}
+        />
+      )}
     </>
   );
 }

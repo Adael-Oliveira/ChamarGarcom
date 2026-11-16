@@ -18,7 +18,7 @@ const ROLES = {
 /** Resumo curto do que a pessoa pode fazer. */
 function permsSummary(m) {
   if (m.role === 'owner') return 'Controle total';
-  if (m.device) return 'Relógio · atende as mesas';
+  if (m.device) return m.kind === 'printer' ? 'Impressora · imprime as comandas dos pedidos' : 'Relógio · atende as mesas';
   const p = permsOf(m);
   if (!p.length) return 'Só atendimento das mesas';
   return 'Atendimento + ' + PERMS.filter((x) => p.includes(x.id)).map((x) => x.label.split(' ')[0]).join(', ');
@@ -83,7 +83,11 @@ function EditMember({ member, onClose, onSave }) {
         </label>
         {!member.device && <p className="muted small">Conta Google: {member.email}</p>}
         {member.device ? (
-          <p className="muted small">Relógio de atendimento: recebe as chamadas e confirma o Visualizado no nome acima.</p>
+          <p className="muted small">
+            {member.kind === 'printer'
+              ? 'Impressora da cozinha: imprime a comanda de cada pedido feito pelo cardápio.'
+              : 'Relógio de atendimento: recebe as chamadas e confirma o Visualizado no nome acima.'}
+          </p>
         ) : staff ? <PermsPicker value={perms} onChange={setPerms} idPrefix="edit" /> : <p className="muted small">Responsável tem controle total do restaurante.</p>}
       </form>
     </Modal>
@@ -151,7 +155,7 @@ export default function Team() {
         text="Só entra na central quem estiver aqui. Qualquer outra conta Google que tentar entrar não vê nada do restaurante."
       />
 
-      {!team.loading && <WatchPromo rid={rid} restaurant={brand.name} hasDevice={team.data.members.some((m) => m.device)} />}
+      {!team.loading && <WatchPromo rid={rid} restaurant={brand.name} hasDevice={team.data.members.some((m) => m.device && m.kind !== 'printer')} />}
 
       <Panel title="Convidar alguém">
         <form className="invite-form" onSubmit={invite}>
@@ -194,7 +198,7 @@ export default function Team() {
         <ul className="people">
           {team.data.members.map((m) => (
             <li key={m.uid}>
-              <span className="avatar">{m.device ? <Icon name="watch" size={18} /> : (staffName(m) || '?')[0]}</span>
+              <span className="avatar">{m.device ? <Icon name={m.kind === 'printer' ? 'print' : 'watch'} size={18} /> : (staffName(m) || '?')[0]}</span>
               <span className="people-main">
                 <strong>
                   {staffName(m) || m.email}
@@ -204,7 +208,7 @@ export default function Team() {
                   {m.device ? permsSummary(m) : `${m.email} · ${permsSummary(m)}`}
                 </small>
               </span>
-              <span className={`pill ${m.role === 'owner' ? 'pill-owner' : ''}`}>{m.device ? 'Relógio' : ROLES[m.role]?.label || 'Equipe'}</span>
+              <span className={`pill ${m.role === 'owner' ? 'pill-owner' : ''}`}>{m.device ? (m.kind === 'printer' ? 'Impressora' : 'Relógio') : ROLES[m.role]?.label || 'Equipe'}</span>
               <button className="btn btn-sm" onClick={() => setEditing(m)}>
                 <Icon name="edit" size={16} /> Editar
               </button>

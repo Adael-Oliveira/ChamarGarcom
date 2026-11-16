@@ -22,6 +22,8 @@ export const DEFAULT_SETTINGS = {
   menuFileName: null,
   menuPath: null,
   menuUpdatedAt: null,
+  ordersEnabled: false, // cardápio digital aceitando pedidos
+  ordersApproval: false, // o caixa confirma antes de ir para a cozinha
 };
 
 export const BRAND_STYLES = {
@@ -87,7 +89,7 @@ export function summarize(calls) {
  */
 export const PERMS = [
   { id: 'mesas', label: 'Mesas e QR Codes', text: 'Cadastrar, desativar e imprimir os QR Codes.' },
-  { id: 'cardapio', label: 'Cardápio', text: 'Trocar o PDF ou o link do cardápio.' },
+  { id: 'cardapio', label: 'Cardápio', text: 'Editar os itens e preços do cardápio e ligar os pedidos.' },
   { id: 'relatorios', label: 'Relatórios', text: 'Ver o histórico de chamadas e quem atendeu.' },
   { id: 'config', label: 'Configurações', text: 'Ligar e desligar chamadas, botão de conta e intervalo.' },
 ];

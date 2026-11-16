@@ -447,3 +447,119 @@
     animation: none;
   }
 }
+
+/* ---------- cardápio digital na tela inicial ---------- */
+.has-order .tv-call {
+  --size: clamp(128px, min(50cqw, 30cqh), 210px);
+  margin: 14px 0 8px;
+}
+.has-order .tv-stage {
+  gap: 10px;
+}
+.tv-order,
+.tv-live {
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  text-align: left;
+  border-radius: var(--brand-radius);
+  cursor: pointer;
+  font-family: var(--brand-font);
+  transition: transform 0.12s ease;
+}
+.tv-order:active,
+.tv-live:active {
+  transform: scale(0.98);
+}
+.tv-order {
+  padding: 16px;
+  background: #fff;
+  color: var(--tv-ink);
+  border: 1.5px solid var(--tv-line);
+  box-shadow: 0 14px 28px -20px color-mix(in srgb, var(--brand-deep) 70%, transparent);
+}
+.tv-order-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: calc(var(--brand-radius) * 0.7);
+  display: grid;
+  place-items: center;
+  background: var(--brand);
+  color: var(--brand-ink);
+}
+.tv-order strong,
+.tv-live strong {
+  display: block;
+  font-family: var(--brand-display);
+  font-size: clamp(1.08rem, 5cqw, 1.22rem);
+  line-height: 1.15;
+}
+.tv-order small,
+.tv-live small {
+  display: block;
+  margin-top: 3px;
+  font-size: 0.85rem;
+  color: var(--tv-ink-2);
+}
+.tv-order-go {
+  font-size: 1.6rem;
+  color: var(--brand-text);
+  line-height: 1;
+}
+.tv-live {
+  padding: 12px 14px;
+  background: var(--brand-soft);
+  color: var(--tv-ink);
+  border: 1.5px solid color-mix(in srgb, var(--brand) 25%, transparent);
+}
+.tv-live strong {
+  font-family: var(--brand-font);
+  font-size: 0.95rem;
+}
+.tv-live em {
+  font-style: normal;
+  font-weight: 700;
+  font-size: 0.88rem;
+  color: var(--brand-text);
+}
+.tv-live-dot {
+  width: 12px;
+  height: 12px;
+  margin: 0 4px;
+  border-radius: 50%;
+  background: #f59e0b;
+  box-shadow: 0 0 0 5px rgb(245 158 11 / 18%);
+}
+.tv-live-dot.is-PREPARING {
+  background: #2563eb;
+  box-shadow: 0 0 0 5px rgb(37 99 235 / 18%);
+}
+.tv-live-dot.is-READY {
+  background: #16a34a;
+  box-shadow: 0 0 0 5px rgb(22 163 74 / 18%);
+}
+.tv-count {
+  min-width: 22px;
+  height: 22px;
+  padding: 0 7px;
+  border-radius: 999px;
+  display: inline-grid;
+  place-items: center;
+  background: var(--brand);
+  color: var(--brand-ink);
+  font-size: 0.75rem;
+}
+@container (max-height: 600px) {
+  .has-order .tv-call {
+    --size: clamp(110px, min(42cqw, 26cqh), 170px);
+  }
+  .tv-order {
+    padding: 12px;
+  }
+  .tv-order-icon {
+    width: 44px;
+    height: 44px;
+  }
+}
