@@ -57,6 +57,7 @@ export default function TableView({
   ordersCount = 0,
   onOrder,
   onOrders,
+  billClosed = false,
   preview = false,
 }) {
   const enabled = settings.callsEnabled && table.active !== false;
@@ -107,12 +108,24 @@ export default function TableView({
           </div>
         )}
 
+        {billClosed && !waiting && !liveOrder && (
+          <div className="tv-status tv-status-viewed" role="status" aria-live="polite">
+            <span className="tv-status-icon">
+              <Receipt size={22} />
+            </span>
+            <div>
+              <strong>Conta fechada. Obrigado pela visita!</strong>
+              <span>Volte sempre. A mesa já está livre.</span>
+            </div>
+          </div>
+        )}
+
         {ordering && liveOrder && (
           <button type="button" className="tv-live" onClick={() => !preview && onOrders?.()} tabIndex={noTab}>
             <span className={`tv-live-dot is-${liveOrder.status}`} aria-hidden="true" />
             <span>
               <strong>
-                Pedido {orderCode(liveOrder.id)} · {ORDER_LABEL_CLIENT[liveOrder.status]}
+                Pedido {orderCode(liveOrder)} · {ORDER_LABEL_CLIENT[liveOrder.status]}
               </strong>
               <small>{liveOrder.count} {liveOrder.count === 1 ? 'item' : 'itens'} · toque para acompanhar</small>
             </span>

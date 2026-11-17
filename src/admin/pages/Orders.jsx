@@ -4,10 +4,11 @@ import { useAdmin } from '../AdminApp';
 import { useNow, useWatch } from '../hooks';
 import { fmtTime } from '../../shared/format';
 import { MAX_STAFF_NAME, cleanStaffName } from '../../shared/model';
-import { ORDER_STATUS, brl, countsInBill, linesCount, needsPrint, orderCode } from '../../shared/orders';
+import { ORDER_STATUS, brl, linesCount, needsPrint, orderCode } from '../../shared/orders';
 import { Icon } from '../../shared/ui/Icon';
 import { Confirm } from '../../shared/ui/Modal';
 import { Empty, PageHeader, Panel, Stat } from '../components/Page';
+import { useCloseBill } from '../components/CloseBill';
 
 const NEXT = {
   WAITING: { to: 'NEW', label: 'Aprovar e enviar à cozinha' },
@@ -36,7 +37,7 @@ function printInBrowser(order, brandName) {
     .c{text-align:center}.big{font-size:22px;font-weight:700;margin:2px 0}hr{border:0;border-top:1px dashed #000;margin:6px 0}
     .r{display:flex;justify-content:space-between}.l{margin-top:3px}.o{padding-left:16px;font-weight:700}
   </style></head><body><div class="c">${esc(brandName)}</div><div class="c big">MESA ${order.tableNumber}</div>
-  <div class="r"><span>PEDIDO ${orderCode(order.id)}</span><span>${fmtTime(order.createdAt)}</span></div><hr>${lines}
+  <div class="r"><span>PEDIDO ${orderCode(order)}</span><span>${fmtTime(order.createdAt)}</span></div><hr>${lines}
   ${order.note ? `<hr><div class="o">RECADO: ${esc(order.note)}</div>` : ''}<hr><div class="r"><span>ITENS: ${linesCount(order.items)}</span><span>VIA COZINHA</span></div></body></html>`;
   const f = document.createElement('iframe');
   f.style.cssText = 'position:fixed;width:0;height:0;border:0;right:0;bottom:0';
@@ -63,7 +64,7 @@ function OrderCard({ order, now, busy, onNext, onCancel, onReprint, onPrint, has
           <b>{order.tableNumber}</b>
         </span>
         <span className="oc-meta">
-          <strong>Pedido {orderCode(order.id)}</strong>
+          <strong>Pedido {orderCode(order)}</strong>
           <span>
             {fmtTime(order.createdAt)} · há {age < 60000 ? "menos de 1 min" : Math.floor(age / 60000) + " min"}
           </span>
@@ -186,16 +187,7 @@ export default function Orders() {
     for (const o of [...list].sort((a, b) => a.createdAt - b.createdAt)) (m[o.status] ||= []).push(o);
     return m;
   }, [list]);
-  const bills = useMemo(() => {
-    const m = new Map();
-    for (const o of list.filter(countsInBill)) {
-      const b = m.get(o.tableId) || { tableId: o.tableId, tableNumber: o.tableNumber, orders: [], total: 0 };
-      b.orders.push(o);
-      b.total += o.total;
-      m.set(o.tableId, b);
-    }
-    return [...m.values()].sort((a, b) => a.tableNumber - b.tableNumber);
-  }, [list]);
+  const { bills, ask: askClose, modal: closeModal } = useCloseBill();
   const delivered = (byStatus.DELIVERED || []).slice().reverse();
   const todayTotal = list.filter((o) => o.status !== 'CANCELED' && o.status !== 'WAITING').reduce((a, o) => a + o.total, 0);
 
@@ -259,7 +251,7 @@ export default function Orders() {
       </div>
 
       <div className="orders-bottom">
-        <Panel title="Contas abertas" text="Soma dos pedidos de cada mesa. Feche a conta quando o cliente pagar.">
+        <Panel title="Contas abertas" text="Soma dos pedidos de cada mesa. Feche a conta quando o cliente pagar: a mesa fica livre.">
           {bills.length ? (
             <ul className="bills">
               {bills.map((b) => (
@@ -274,7 +266,7 @@ export default function Orders() {
                       {b.orders.length} {b.orders.length === 1 ? 'pedido' : 'pedidos'} · {linesCount(b.orders.flatMap((o) => o.items))} itens
                     </small>
                   </span>
-                  <button className="btn btn-sm" onClick={() => setConfirm({ type: 'bill', b })}>
+                  <button className="btn btn-sm" onClick={() => askClose(b)}>
                     <Icon name="receipt" size={16} /> Fechar conta
                   </button>
                 </li>
@@ -293,7 +285,7 @@ export default function Orders() {
             {delivered.slice(0, 30).map((o) => (
               <li key={o.id}>
                 <span>
-                  Mesa <b>{o.tableNumber}</b> · {orderCode(o.id)}
+                  Mesa <b>{o.tableNumber}</b> · {orderCode(o)}
                 </span>
                 <span className="muted">{o.items.map((l) => `${l.qty}× ${l.name}`).join(', ')}</span>
                 <span>{fmtTime(o.statusAt || o.createdAt)}</span>
@@ -328,19 +320,7 @@ export default function Orders() {
           }}
         />
       )}
-      {confirm?.type === 'bill' && (
-        <Confirm
-          title={`Fechar a conta da mesa ${confirm.b.tableNumber}?`}
-          message={`Total de ${brl(confirm.b.total)} em ${confirm.b.orders.length} ${confirm.b.orders.length === 1 ? 'pedido' : 'pedidos'}. Os pedidos saem das contas abertas.`}
-          confirmLabel="Fechar conta"
-          onClose={() => setConfirm(null)}
-          onConfirm={() => {
-            const ids = confirm.b.orders.map((o) => o.id);
-            setConfirm(null);
-            run(() => api.closeBill(rid, ids), `Conta da mesa ${confirm.b.tableNumber} fechada`).catch(() => {});
-          }}
-        />
-      )}
+      {closeModal}
     </>
   );
 }

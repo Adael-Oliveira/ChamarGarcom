@@ -8,6 +8,8 @@ import { Icon } from '../../shared/ui/Icon';
 import Switch from '../../shared/ui/Switch';
 import { Empty, PageHeader, Stat } from '../components/Page';
 import { WatchTip } from '../components/WatchOffer';
+import { useCloseBill } from '../components/CloseBill';
+import { brl } from '../../shared/orders';
 
 function stateOf(table, call, now) {
   if (!table.active) return 'off';
@@ -30,7 +32,7 @@ const STATE_LABEL = {
 };
 
 /** Ticket de chamada na fila: o que o caixa precisa ver de longe. */
-function Ticket({ call, now, onViewed, busy }) {
+function Ticket({ call, now, onViewed, busy, bill: openBill, onCloseBill }) {
   const waited = now - call.calledAt;
   const late = waited > LATE_AFTER_MINUTES * 60000;
   const bill = call.reason === 'bill';
@@ -53,11 +55,16 @@ function Ticket({ call, now, onViewed, busy }) {
       <button className="btn ticket-btn" onClick={() => onViewed(call)} disabled={busy}>
         <Icon name="check" /> Visualizado
       </button>
+      {bill && openBill && (
+        <button className="btn ticket-bill" onClick={() => onCloseBill(openBill)} disabled={busy}>
+          <Icon name="receipt" size={18} /> Fechar conta · {brl(openBill.total)}
+        </button>
+      )}
     </li>
   );
 }
 
-function TableTile({ table, call, now, onViewed, onDone, busy }) {
+function TableTile({ table, call, now, onViewed, onDone, busy, bill, onCloseBill }) {
   const st = stateOf(table, call, now);
   const pending = st === 'wait' || st === 'bill' || st === 'late';
   return (
@@ -76,10 +83,16 @@ function TableTile({ table, call, now, onViewed, onDone, busy }) {
           <Icon name="check" size={16} /> Visualizado
         </button>
       )}
-      {st === 'viewed' && (
-        <button className="btn btn-sm btn-ghost tile-btn" onClick={() => onDone(call)} disabled={busy}>
-          Liberar mesa
+      {st === 'viewed' && bill && call.reason === 'bill' ? (
+        <button className="btn btn-sm tile-btn" onClick={() => onCloseBill(bill)} disabled={busy}>
+          <Icon name="receipt" size={16} /> Fechar conta
         </button>
+      ) : (
+        st === 'viewed' && (
+          <button className="btn btn-sm btn-ghost tile-btn" onClick={() => onDone(call)} disabled={busy}>
+            Liberar mesa
+          </button>
+        )
       )}
     </div>
   );
@@ -90,6 +103,7 @@ export default function Dashboard() {
   const who = { uid: user.uid, name: myName };
   const now = useNow(1000);
   const [busy, setBusy] = useState(null);
+  const { billOf, ask: askClose, modal: closeModal } = useCloseBill();
 
   const list = calls.data;
   const lastByTable = useMemo(() => {
@@ -147,7 +161,7 @@ export default function Dashboard() {
           {queue.length ? (
             <ol className="tickets">
               {queue.map((c) => (
-                <Ticket key={c.id} call={c} now={now} onViewed={viewed} busy={busy === c.id} />
+                <Ticket key={c.id} call={c} now={now} onViewed={viewed} busy={busy === c.id} bill={billOf(c.tableId)} onCloseBill={askClose} />
               ))}
             </ol>
           ) : (
@@ -180,7 +194,7 @@ export default function Dashboard() {
           ) : (
             <div className="tiles">
               {tables.data.map((t) => (
-                <TableTile key={t.id} table={t} call={lastByTable.get(t.id)} now={now} busy={busy === lastByTable.get(t.id)?.id} onViewed={viewed} onDone={done} />
+                <TableTile key={t.id} table={t} call={lastByTable.get(t.id)} now={now} busy={busy === lastByTable.get(t.id)?.id} onViewed={viewed} onDone={done} bill={billOf(t.id)} onCloseBill={askClose} />
               ))}
               {orphans.map((c) => (
                 <TableTile key={c.id} table={{ id: c.tableId, number: c.tableNumber, active: true }} call={c} now={now} busy={busy === c.id} onViewed={viewed} onDone={done} />
@@ -190,6 +204,7 @@ export default function Dashboard() {
         </section>
       </div>
       <WatchTip rid={rid} restaurant={brand?.name} oldest={queue[0]} now={now} enabled={can('config')} />
+      {closeModal}
     </>
   );
 }

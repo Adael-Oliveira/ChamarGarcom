@@ -469,6 +469,8 @@ static bool printOrder(const Pending &p) {
   if (fsGet(rel, d) != 200) return false;
   JsonVariantConst f = d["fields"];
   int table = atoi(f["tableNumber"]["integerValue"] | "0");
+  int number = atoi(f["number"]["integerValue"] | "0");  // número do dia (pedidos antigos não têm)
+  String code = number > 0 ? String(number) : orderCode(p.id);
   String note = fsStr(f, "note");
   bool reprint = p.printCount > 0;
 
@@ -480,7 +482,7 @@ static bool printOrder(const Pending &p) {
   pos.bold(true);
   pos.line("MESA " + String(table));
   pos.size(1, 1);
-  pos.line("Pedido " + orderCode(p.id) + "  " + hhmm(p.createdMs));
+  pos.line("Pedido " + code + "  -  " + hhmm(p.createdMs));
   pos.bold(false);
   if (reprint) pos.line("*** REIMPRESSAO ***");
   pos.align(0);
@@ -512,7 +514,7 @@ static bool printOrder(const Pending &p) {
   }
   pos.line(String(count) + (count == 1 ? " item" : " itens") + "  -  impresso " + hhmm((int64_t)time(nullptr) * 1000));
   finishTicket();
-  Serial.printf("[pedido] mesa %d %s impresso (%d itens)\n", table, orderCode(p.id).c_str(), count);
+  Serial.printf("[pedido] mesa %d pedido %s impresso (%d itens)\n", table, code.c_str(), count);
   return true;
 }
 

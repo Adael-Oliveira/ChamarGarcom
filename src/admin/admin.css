@@ -2108,3 +2108,11 @@ textarea.input {
 .delivered li b:last-child {
   font-variant-numeric: tabular-nums;
 }
+
+/* fechar a conta direto do aviso "pediu a conta" */
+.ticket-bill {
+  grid-column: 1 / -1;
+  min-height: 44px;
+  font-weight: 800;
+  justify-content: center;
+}

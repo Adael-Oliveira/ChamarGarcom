@@ -29,7 +29,13 @@ const GENERAL = { callsEnabled: true, billEnabled: true, cooldownMinutes: 2, men
 const MENU = { categories: [{ id: 'c1', name: 'Pratos', items: [{ id: 'i1', name: 'Moqueca', desc: '', price: 12900, available: true, img: null, opts: null, tag: null }] }] };
 const LINE = { id: 'i1', name: 'Moqueca', price: 12900, qty: 1, opt: null, obs: 'sem coentro' };
 
-async function seed({ general = {}, active = true, lastOrderAgoSec } = {}) {
+// mesmo cálculo do servidor (horário de Brasília)
+const today = () => {
+  const t = new Date(Date.now() - 3 * 3600000);
+  return t.getUTCFullYear() * 10000 + (t.getUTCMonth() + 1) * 100 + t.getUTCDate();
+};
+
+async function seed({ general = {}, active = true, lastOrderAgoSec, seq } = {}) {
   await env.clearFirestore();
   await env.withSecurityRulesDisabled(async (ctx) => {
     const db = ctx.firestore();
@@ -48,19 +54,22 @@ async function seed({ general = {}, active = true, lastOrderAgoSec } = {}) {
       const at = Timestamp.fromMillis(Date.now() - lastOrderAgoSec * 1000);
       await setDoc(doc(db, `restaurants/${RID}/orders/antigo`), { restaurantId: RID, tableId: TID, tableNumber: 5, orderId: 'antigo', token: TOKEN, items: [LINE], total: 12900, status: 'NEW', createdAt: at, printed: false, printCount: 0 });
       await setDoc(doc(db, `restaurants/${RID}/orderState/${TID}`), { lastOrderId: 'antigo', lastOrderAt: at });
+      await setDoc(doc(db, `restaurants/${RID}/orderSeq/today`), { day: today(), n: 1, lastOrderId: 'antigo' });
     }
+    if (seq) await setDoc(doc(db, `restaurants/${RID}/orderSeq/today`), { lastOrderId: 'x', ...seq });
   });
 }
 
-/** O mesmo lote que o api.createOrder grava. */
-function order(db, over = {}, { withState = true } = {}) {
+/** O mesmo lote que o api.createOrder grava (pedido + estado da mesa + número do dia). */
+function order(db, over = {}, { withState = true, n = 1, day = today(), withSeq = true, seqN } = {}) {
   const id = 'o' + Math.random().toString(36).slice(2);
   const b = writeBatch(db);
   b.set(doc(db, `restaurants/${RID}/orders/${id}`), {
-    restaurantId: RID, tableId: TID, tableNumber: 5, orderId: id, token: TOKEN, items: [LINE], total: 12900, note: null,
+    restaurantId: RID, tableId: TID, tableNumber: 5, orderId: id, number: n, token: TOKEN, items: [LINE], total: 12900, note: null,
     status: 'NEW', createdAt: serverTimestamp(), printed: false, printCount: 0, ...over,
   });
   if (withState) b.set(doc(db, `restaurants/${RID}/orderState/${TID}`), { lastOrderId: id, lastOrderAt: serverTimestamp() });
+  if (withSeq) b.set(doc(db, `restaurants/${RID}/orderSeq/today`), { day, n: seqN ?? n, lastOrderId: id });
   return { id, commit: () => b.commit() };
 }
 
@@ -138,7 +147,7 @@ describe('cliente faz o pedido', () => {
     await seed({ lastOrderAgoSec: 5 });
     await assertFails(order(anon()).commit());
     await seed({ lastOrderAgoSec: 30 });
-    await assertSucceeds(order(anon()).commit());
+    await assertSucceeds(order(anon(), {}, { n: 2 }).commit());
   });
   test('cliente acompanha o próprio pedido pelo ID, mas não lista nem altera', async () => {
     await seed();
@@ -148,6 +157,41 @@ describe('cliente faz o pedido', () => {
     await assertFails(getDocs(collection(anon(), `restaurants/${RID}/orders`)));
     await assertFails(updateDoc(doc(anon(), `restaurants/${RID}/orders/${o.id}`), { status: 'CANCELED' }));
     await assertFails(deleteDoc(doc(anon(), `restaurants/${RID}/orders/${o.id}`)));
+  });
+});
+
+describe('número do pedido (recomeça todo dia)', () => {
+  test('primeiro pedido do dia é o nº 1; o seguinte, nº 2', async () => {
+    await seed();
+    await assertSucceeds(order(anon()).commit());
+    await assertSucceeds(getDoc(doc(anon(), `restaurants/${RID}/orderSeq/today`)));
+    await seed({ seq: { day: today(), n: 1 } });
+    await assertSucceeds(order(anon(), {}, { n: 2 }).commit());
+  });
+  test('pular, repetir ou voltar o número: recusado', async () => {
+    await seed({ seq: { day: today(), n: 7 } });
+    await assertFails(order(anon(), {}, { n: 9 }).commit());
+    await assertFails(order(anon(), {}, { n: 7 }).commit());
+    await assertFails(order(anon(), {}, { n: 1 }).commit());
+    await assertSucceeds(order(anon(), {}, { n: 8 }).commit());
+  });
+  test('dia virou: volta para o nº 1 (o dia é o do servidor, não o do celular)', async () => {
+    await seed({ seq: { day: 20200101, n: 40 } });
+    await assertFails(order(anon(), {}, { n: 41, day: 20200101 }).commit());
+    await assertFails(order(anon(), {}, { n: 1, day: 20200102 }).commit());
+    await assertSucceeds(order(anon(), {}, { n: 1 }).commit());
+  });
+  test('sem gravar a sequência, ou número diferente nela: recusado', async () => {
+    await seed();
+    await assertFails(order(anon(), {}, { withSeq: false }).commit());
+    await assertFails(order(anon(), {}, { n: 1, seqN: 2 }).commit());
+    await assertFails(order(anon(), { number: '1' }).commit());
+  });
+  test('ninguém mexe na sequência sem criar o pedido junto', async () => {
+    await seed({ seq: { day: today(), n: 3 } });
+    await assertFails(setDoc(doc(anon(), `restaurants/${RID}/orderSeq/today`), { day: today(), n: 4, lastOrderId: 'nao-existe' }));
+    await assertFails(setDoc(doc(owner(), `restaurants/${RID}/orderSeq/today`), { day: today(), n: 1, lastOrderId: 'x' }));
+    await assertFails(deleteDoc(doc(owner(), `restaurants/${RID}/orderSeq/today`)));
   });
 });
 
@@ -172,11 +216,23 @@ describe('central e impressora', () => {
     await assertSucceeds(updateDoc(ref(owner()), { printed: false }));
     await assertFails(updateDoc(ref(printer()), { printedAt: Timestamp.fromMillis(0) }));
   });
-  test('fechar a conta da mesa', async () => {
+  test('fechar a conta da mesa (pedidos + chamadas abertas da mesa, no mesmo lote)', async () => {
     await seed();
     const o = order(anon());
     await o.commit();
-    await assertSucceeds(updateDoc(doc(staff(), `restaurants/${RID}/orders/${o.id}`), { closed: true, closedAt: serverTimestamp() }));
+    await env.withSecurityRulesDisabled((ctx) =>
+      setDoc(doc(ctx.firestore(), `restaurants/${RID}/calls/c1`), { restaurantId: RID, tableId: TID, tableNumber: 5, callId: 'c1', token: TOKEN, reason: 'bill', calledAt: Timestamp.now(), viewedAt: null, status: 'PENDING' }),
+    );
+    const db = staff();
+    const b = writeBatch(db);
+    b.update(doc(db, `restaurants/${RID}/orders/${o.id}`), { closed: true, closedAt: serverTimestamp() });
+    b.update(doc(db, `restaurants/${RID}/calls/c1`), { status: 'DONE', doneAt: serverTimestamp(), doneBy: 'garcom', doneByName: 'Garçom' });
+    // libera a mesa: zera os intervalos de chamada e de pedido (equipe sem permissão de mesas também pode)
+    b.delete(doc(db, `restaurants/${RID}/tableState/${TID}`));
+    b.delete(doc(db, `restaurants/${RID}/orderState/${TID}`));
+    await assertSucceeds(b.commit());
+    await assertFails(deleteDoc(doc(anon(), `restaurants/${RID}/tableState/${TID}`)));
+    await assertFails(deleteDoc(doc(as('outro'), `restaurants/${RID}/orderState/${TID}`)));
   });
   test('admin de outro restaurante não vê nem mexe', async () => {
     await seed();

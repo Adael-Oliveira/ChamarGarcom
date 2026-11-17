@@ -45,6 +45,7 @@ import {
   onSnapshot,
   orderBy,
   query,
+  runTransaction,
   serverTimestamp,
   setDoc,
   Timestamp,
@@ -55,7 +56,7 @@ import {
 import { firebaseConfig, useEmulators } from '../env';
 import { planHasMenu, planLimitMessage, planTables } from '../../shared/platform';
 import { CALL_STATUS, DEFAULT_BRAND, DEFAULT_SETTINGS, cleanPerms, cleanStaffName, generateToken, normalizeEmail } from '../../shared/model';
-import { EMPTY_MENU, ORDER_STATUS, sanitizeMenu } from '../../shared/orders';
+import { EMPTY_MENU, ORDER_STATUS, dayKey, sanitizeMenu } from '../../shared/orders';
 
 const config = useEmulators
   ? { apiKey: 'demo-key', authDomain: 'localhost', projectId: 'demo-chamar-garcom', storageBucket: 'demo-chamar-garcom.appspot.com', appId: 'demo' }
@@ -114,6 +115,7 @@ const P = {
   orders: (rid) => collection(db, 'restaurants', rid, 'orders'),
   order: (rid, id) => doc(db, 'restaurants', rid, 'orders', id),
   orderState: (rid, id) => doc(db, 'restaurants', rid, 'orderState', id),
+  orderSeq: (rid) => doc(db, 'restaurants', rid, 'orderSeq', 'today'),
 };
 
 const toDate = (t) => (t && typeof t.toDate === 'function' ? t.toDate() : t instanceof Date ? t : null);
@@ -151,6 +153,7 @@ function normOrder(snap) {
     id: snap.id,
     tableId: d.tableId,
     tableNumber: d.tableNumber,
+    number: Number.isInteger(d.number) ? d.number : null,
     items: Array.isArray(d.items) ? d.items : [],
     total: d.total || 0,
     note: d.note || null,
@@ -178,25 +181,6 @@ function friendly(e) {
   return e;
 }
 const wrap = (p) => p.catch((e) => Promise.reject(friendly(e)));
-
-/** Grava um lote do cliente (sem login) com tempo-limite: sem sinal, avisa em vez de ficar girando. */
-async function clientCommit(b) {
-  let timer;
-  try {
-    await Promise.race([
-      b.commit(),
-      new Promise((_, rej) => {
-        timer = setTimeout(() => rej(Object.assign(new Error('timeout'), { code: 'network' })), 15000);
-      }),
-    ]);
-    return { ok: true };
-  } catch (e) {
-    if (e.code === 'network' || e.code === 'unavailable') return { error: 'network' };
-    return { error: 'rejected' };
-  } finally {
-    clearTimeout(timer);
-  }
-}
 
 // ---------------------------------------------------------------- api
 const api = {
@@ -466,10 +450,19 @@ const api = {
   setOrderStatus: (rid, id, status, who) =>
     wrap(updateDoc(P.order(rid, id), { status, statusAt: serverTimestamp(), statusBy: who.uid, statusByName: cleanStaffName(who.name) })),
   reprintOrder: (rid, id) => wrap(updateDoc(P.order(rid, id), { printed: false })),
-  async closeBill(rid, orderIds) {
-    for (let i = 0; i < orderIds.length; i += 400) {
+  /** Fecha a conta e libera a mesa: encerra os pedidos e conclui as chamadas abertas dela. */
+  async closeBill(rid, orderIds, callIds = [], who = null, tableId = null) {
+    const ops = [
+      // zera os intervalos da mesa: os próximos clientes chamam e pedem sem esperar
+      ...(tableId ? [(b) => b.delete(P.state(rid, tableId)), (b) => b.delete(P.orderState(rid, tableId))] : []),
+      ...orderIds.map((id) => (b) => b.update(P.order(rid, id), { closed: true, closedAt: serverTimestamp() })),
+      ...callIds.map((id) => (b) =>
+        b.update(P.call(rid, id), { status: CALL_STATUS.DONE, doneAt: serverTimestamp(), doneBy: who.uid, doneByName: cleanStaffName(who.name) }),
+      ),
+    ];
+    for (let i = 0; i < ops.length; i += 400) {
       const b = writeBatch(db);
-      orderIds.slice(i, i + 400).forEach((id) => b.update(P.order(rid, id), { closed: true, closedAt: serverTimestamp() }));
+      ops.slice(i, i + 400).forEach((f) => f(b));
       await wrap(b.commit());
     }
   },
@@ -659,12 +652,14 @@ const api = {
         getDocs(P.menuImages(rid)),
       ]),
     );
+    const extra = [P.orderSeq(rid)];
     const refs = [
       ...calls.docs.map((d) => d.ref),
       ...orders.docs.map((d) => d.ref),
       ...orderStates.docs.map((d) => d.ref),
       ...images.docs.map((d) => d.ref),
       P.menu(rid),
+      ...extra,
       ...states.docs.map((d) => d.ref),
       ...tables.docs.map((d) => P.link(d.data().token)),
       ...tables.docs.map((d) => d.ref),
@@ -766,27 +761,52 @@ const api = {
     );
   },
   /** Cria o pedido + o estado de pedidos da mesa (o intervalo mínimo é conferido pelas regras). */
+  /**
+   * Cria o pedido com o número do dia (transação: dois pedidos ao mesmo tempo
+   * nunca pegam o mesmo número; as regras conferem a sequência e o dia).
+   */
   async createOrder({ token, link, items, total, note, approval }) {
-    const { restaurantId: rid, tableId, number } = link;
+    const { restaurantId: rid, tableId, number: tableNumber } = link;
     const ref = doc(P.orders(rid));
-    const b = writeBatch(db);
-    b.set(ref, {
-      restaurantId: rid,
-      tableId,
-      tableNumber: number,
-      orderId: ref.id,
-      token,
-      items,
-      total,
-      note: note || null,
-      status: approval ? ORDER_STATUS.WAITING : ORDER_STATUS.NEW,
-      createdAt: serverTimestamp(),
-      printed: false,
-      printCount: 0,
-    });
-    b.set(P.orderState(rid, tableId), { lastOrderId: ref.id, lastOrderAt: serverTimestamp() });
-    const r = await clientCommit(b);
-    return r.ok ? { ok: true, orderId: ref.id } : r;
+    const seqRef = P.orderSeq(rid);
+    let timer;
+    try {
+      const n = await Promise.race([
+        runTransaction(db, async (tx) => {
+          const seq = await tx.get(seqRef);
+          const day = dayKey();
+          const cur = seq.exists() ? seq.data() : null;
+          const n = cur && cur.day === day ? cur.n + 1 : 1;
+          tx.set(ref, {
+            restaurantId: rid,
+            tableId,
+            tableNumber,
+            orderId: ref.id,
+            number: n,
+            token,
+            items,
+            total,
+            note: note || null,
+            status: approval ? ORDER_STATUS.WAITING : ORDER_STATUS.NEW,
+            createdAt: serverTimestamp(),
+            printed: false,
+            printCount: 0,
+          });
+          tx.set(P.orderState(rid, tableId), { lastOrderId: ref.id, lastOrderAt: serverTimestamp() });
+          tx.set(seqRef, { day, n, lastOrderId: ref.id });
+          return n;
+        }),
+        new Promise((_, rej) => {
+          timer = setTimeout(() => rej(Object.assign(new Error('timeout'), { code: 'network' })), 15000);
+        }),
+      ]);
+      return { ok: true, orderId: ref.id, number: n };
+    } catch (e) {
+      if (e.code === 'network' || e.code === 'unavailable') return { error: 'network' };
+      return { error: 'rejected' };
+    } finally {
+      clearTimeout(timer);
+    }
   },
   /** Cria a chamada + atualiza o estado da mesa (o intervalo é conferido pelas regras). */
   async createCall({ token, link, reason }) {

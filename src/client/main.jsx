@@ -160,6 +160,7 @@ function Page() {
         ordersCount={ordering.orders.length}
         onOrder={() => setScreen('menu')}
         onOrders={() => setScreen('orders')}
+        billClosed={ordering.billClosed}
       />
       {menuOpen && <MenuSheet url={menuUrl} onClose={() => setMenuOpen(false)} />}
       {ordering.enabled && screen && (

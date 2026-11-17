@@ -68,6 +68,31 @@ export function useOrdering(token, link, settings) {
   );
   const live = list.find((o) => ACTIVE_ORDER.has(o.status)) || null;
 
+  // conta fechada na central: os pedidos saem deste celular e a mesa fica livre
+  const [billClosed, setBillClosed] = useState(false);
+  useEffect(() => {
+    if (!mine.length || !mine.every((x) => orders[x.id])) return;
+    const open = mine.filter((x) => !orders[x.id].closed);
+    if (open.length === mine.length) return;
+    setMine(open);
+    try {
+      if (open.length) LS.setItem(`cg:pedidos:${token}`, JSON.stringify(open));
+      else LS.removeItem(`cg:pedidos:${token}`);
+    } catch {
+      /* ignora */
+    }
+    if (!open.length) {
+      setBillClosed(true);
+      setCart([]);
+      lastSent.current = 0;
+    }
+  }, [orders]); // eslint-disable-line
+  useEffect(() => {
+    if (!billClosed) return;
+    const t = setTimeout(() => setBillClosed(false), 15 * 60000);
+    return () => clearTimeout(t);
+  }, [billClosed]);
+
   // vibra quando o pedido fica pronto
   const prevLive = useRef(null);
   useEffect(() => {
@@ -86,6 +111,7 @@ export function useOrdering(token, link, settings) {
       return { message: 'Não foi possível enviar agora. Aguarde alguns segundos e tente de novo, ou chame o garçom.' };
     }
     lastSent.current = Date.now();
+    setBillClosed(false);
     const next = [...mine, { id: r.orderId, at: Date.now() }];
     setMine(next);
     try {
@@ -104,8 +130,9 @@ export function useOrdering(token, link, settings) {
     cart,
     setCart,
     orders: list,
-    live: live && { id: live.id, status: live.status, count: linesCount(live.items) },
+    live: live && { id: live.id, number: live.number, status: live.status, count: linesCount(live.items) },
     send,
+    billClosed,
   };
 }
 export { ORDER_STATUS };

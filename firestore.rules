@@ -33,6 +33,12 @@ service cloud.firestore {
     function statePath(rid, id) { return /databases/$(database)/documents/restaurants/$(rid)/tableState/$(id); }
     function orderPath(rid, id) { return /databases/$(database)/documents/restaurants/$(rid)/orders/$(id); }
     function orderStatePath(rid, id) { return /databases/$(database)/documents/restaurants/$(rid)/orderState/$(id); }
+    function orderSeqPath(rid) { return /databases/$(database)/documents/restaurants/$(rid)/orderSeq/today; }
+    // dia de hoje no horário de Brasília (20261117): a numeração dos pedidos recomeça todo dia
+    function todayKey() {
+      let t = request.time - duration.value(3, 'h');
+      return t.year() * 10000 + t.month() * 100 + t.day();
+    }
     function settingsOf(rid) { return get(settingsPath(rid)).data; }
 
     // getAfter: enxerga o estado depois da escrita atual (permite criar
@@ -292,7 +298,8 @@ service cloud.firestore {
         allow list: if isAdminOf(rid);
         allow create: if validStateWrite(tableId);
         allow update: if validStateWrite(tableId) && cooldownOver();
-        allow delete: if can(rid, 'mesas');
+        // a equipe libera a mesa ao fechar a conta: os próximos clientes chamam sem esperar
+        allow delete: if isAdminOf(rid);
       }
 
       // ----- chamadas -----
@@ -346,9 +353,13 @@ service cloud.firestore {
         let d = request.resource.data;
         let link = get(/databases/$(database)/documents/tableLinks/$(d.token)).data;
         let s = settingsOf(rid);
-        return d.keys().hasOnly(['restaurantId', 'tableId', 'tableNumber', 'orderId', 'token', 'items', 'total', 'note', 'status', 'createdAt', 'printed', 'printCount'])
-          && d.keys().hasAll(['restaurantId', 'tableId', 'tableNumber', 'orderId', 'token', 'items', 'total', 'status', 'createdAt', 'printed', 'printCount'])
+        return d.keys().hasOnly(['restaurantId', 'tableId', 'tableNumber', 'orderId', 'number', 'token', 'items', 'total', 'note', 'status', 'createdAt', 'printed', 'printCount'])
+          && d.keys().hasAll(['restaurantId', 'tableId', 'tableNumber', 'orderId', 'number', 'token', 'items', 'total', 'status', 'createdAt', 'printed', 'printCount'])
           && d.orderId == orderId
+          // número do dia: o mesmo gravado na sequência, no mesmo lote
+          && d.number is int
+          && getAfter(orderSeqPath(rid)).data.lastOrderId == orderId
+          && getAfter(orderSeqPath(rid)).data.n == d.number
           && d.restaurantId == rid
           && d.token is string
           && link.restaurantId == rid
@@ -392,7 +403,25 @@ service cloud.firestore {
         allow list: if isAdminOf(rid);
         allow create: if validOrderStateWrite(tableId);
         allow update: if validOrderStateWrite(tableId) && request.time > resource.data.lastOrderAt + duration.value(20, 's');
-        allow delete: if can(rid, 'mesas') || isPlatformOwner();
+        allow delete: if isAdminOf(rid);
+      }
+      // sequência do dia: sobe de 1 em 1 e volta a 1 quando o dia muda (dia conferido pelo servidor)
+      function validSeqWrite(prevN, prevDay) {
+        let d = request.resource.data;
+        let op = orderPath(rid, d.lastOrderId);
+        return d.keys().hasOnly(['day', 'n', 'lastOrderId'])
+          && d.day == todayKey()
+          && d.n == (prevDay == todayKey() ? prevN + 1 : 1)
+          && d.lastOrderId is string
+          && !exists(op)
+          && existsAfter(op)
+          && getAfter(op).data.number == d.n;
+      }
+      match /orderSeq/{docId} {
+        allow get: if docId == 'today';
+        allow create: if docId == 'today' && validSeqWrite(0, 0);
+        allow update: if docId == 'today' && validSeqWrite(resource.data.n, resource.data.day);
+        allow delete: if isPlatformOwner();
       }
       function validOrderStateWrite(tableId) {
         let d = request.resource.data;

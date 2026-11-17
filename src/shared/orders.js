@@ -106,7 +106,32 @@ export const linesCount = (lines) => lines.reduce((a, l) => a + l.qty, 0);
 export const sameLine = (a, b) => a.id === b.id && (a.opt || null) === (b.opt || null) && (a.obs || null) === (b.obs || null);
 
 /** Código curto do pedido para falar e conferir ("#K7Q2"). */
-export const orderCode = (id) => '#' + String(id || '').replace(/[^a-z0-9]/gi, '').slice(-4).toUpperCase();
+/**
+ * Como o pedido é chamado: número do dia (nº 1, nº 2…, recomeça todo dia).
+ * Pedidos antigos, sem número, usam as 4 últimas letras do identificador.
+ */
+export const orderCode = (o) =>
+  o && typeof o === 'object' && Number.isInteger(o.number)
+    ? `nº ${o.number}`
+    : '#' + String((o && typeof o === 'object' ? o.id : o) || '').replace(/[^a-z0-9]/gi, '').slice(-4).toUpperCase();
+
+/** Dia no horário de Brasília como número (20261117): a numeração dos pedidos recomeça a cada dia. */
+export const dayKey = (d = new Date()) => {
+  const t = new Date(d.getTime() - 3 * 3600000);
+  return t.getUTCFullYear() * 10000 + (t.getUTCMonth() + 1) * 100 + t.getUTCDate();
+};
+
+/** Contas abertas por mesa: soma dos pedidos que entram na conta. */
+export function openBills(orders) {
+  const m = new Map();
+  for (const o of orders.filter(countsInBill)) {
+    const b = m.get(o.tableId) || { tableId: o.tableId, tableNumber: o.tableNumber, orders: [], total: 0 };
+    b.orders.push(o);
+    b.total += o.total;
+    m.set(o.tableId, b);
+  }
+  return [...m.values()].sort((a, b) => a.tableNumber - b.tableNumber);
+}
 
 /** Pedidos que somam na conta da mesa (não cancelados e ainda não fechados). */
 export const countsInBill = (o) => o.status !== ORDER_STATUS.CANCELED && o.status !== ORDER_STATUS.WAITING && !o.closed;

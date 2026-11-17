@@ -92,7 +92,7 @@ async function ownerPairs(code) {
 }
 
 const order = (id, table, status, extra = {}) => ({
-  restaurantId: RID, tableId: `t${table}`, tableNumber: table, orderId: id, token: 'x'.repeat(32),
+  restaurantId: RID, tableId: `t${table}`, tableNumber: table, orderId: id, number: Number(id.slice(1)), token: 'x'.repeat(32),
   items: [
     { id: 'i1', name: 'Risoto de camarão', price: 7900, qty: 2, opt: null, obs: 'sem cebola' },
     { id: 'i2', name: 'Suco natural', price: 1200, qty: 1, opt: 'Laranja', obs: null },
@@ -138,6 +138,7 @@ describe('impressora: conectar e imprimir pelo REST', () => {
     // pedido completo (para imprimir)
     const full = await rest('GET', `${BASE}/restaurants/${RID}/orders/o1`);
     assert.equal(full.json.fields.tableNumber.integerValue, '6');
+    assert.equal(full.json.fields.number.integerValue, '1');
     assert.equal(full.json.fields.items.arrayValue.values[0].mapValue.fields.name.stringValue, 'Risoto de camarão');
     assert.equal(full.json.fields.printed.booleanValue, true);
     assert.equal(full.json.fields.printCount.integerValue, '1');

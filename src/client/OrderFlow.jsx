@@ -302,7 +302,7 @@ function OrderCard({ order }) {
     <article className="of-card">
       <header>
         <strong>
-          Pedido {orderCode(order.id)} · {fmtTime(order.createdAt)}
+          Pedido {orderCode(order)} · {fmtTime(order.createdAt)}
         </strong>
         <span className={`of-pill is-${order.status}`}>{ORDER_LABEL_CLIENT[order.status]}</span>
       </header>
@@ -329,7 +329,7 @@ function SentScreen({ order, head, onHome }) {
       <div className="of-body">
         <div className="of-done">
           <span className={`of-done-icon ${canceled ? 'is-bad' : waiting ? 'is-wait' : ''}`}>{canceled ? '×' : waiting ? '…' : '✓'}</span>
-          <h1>{canceled ? 'Pedido cancelado' : waiting ? 'Pedido enviado!' : `Pedido ${orderCode(order.id)} enviado!`}</h1>
+          <h1>{canceled ? 'Pedido cancelado' : waiting ? 'Pedido enviado!' : `Pedido ${orderCode(order)} enviado!`}</h1>
           <p>{canceled ? 'Chame o garçom se precisar de ajuda.' : waiting ? 'O caixa vai confirmar e mandar para a cozinha.' : 'A cozinha já recebeu. Acompanhe aqui.'}</p>
         </div>
         {!waiting && !canceled && <Steps order={order} />}

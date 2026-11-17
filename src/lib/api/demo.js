@@ -9,7 +9,7 @@
 import { planHasMenu, planLimitMessage, planTables } from '../../shared/platform';
 import { CALL_STATUS, DEFAULT_BRAND, DEFAULT_SETTINGS, cleanPerms, cleanStaffName, generateToken, normalizeEmail } from '../../shared/model';
 import { sampleMenu } from '../../shared/sample-menu';
-import { EMPTY_MENU, ORDER_COOLDOWN_SEC, ORDER_STATUS, needsPrint, sanitizeMenu } from '../../shared/orders';
+import { EMPTY_MENU, ORDER_COOLDOWN_SEC, ORDER_STATUS, dayKey, needsPrint, sanitizeMenu } from '../../shared/orders';
 
 const KEY = 'chamar-garcom:demo:v3';
 const SESSION = 'chamar-garcom:demo:user';
@@ -37,8 +37,10 @@ const MIN = 60000;
 
 function seedOrders(now) {
   const L = (id, name, price, qty, opt = null, obs = null) => ({ id, name, price, qty, opt, obs });
+  let seq = 0;
   const o = (tableNumber, minAgo, status, items, extra = {}) => ({
     id: uid() + tableNumber,
+    number: ++seq,
     tableId: 'm' + tableNumber,
     tableNumber,
     items,
@@ -118,7 +120,7 @@ function seed() {
     calls: { [RID]: calls },
     ...(() => {
       const m = sampleMenu();
-      return { menu: { [RID]: m.menu }, menuImages: { [RID]: m.images }, orders: { [RID]: seedOrders(now) }, orderState: { [RID]: {} } };
+      return { menu: { [RID]: m.menu }, menuImages: { [RID]: m.images }, orders: { [RID]: seedOrders(now) }, orderState: { [RID]: {} }, orderSeq: { [RID]: { day: dayKey(new Date(now)), n: 3 } } };
     })(),
     leads: [
       { id: 'l1', name: 'Marina Costa', restaurant: 'Café da Praça', city: 'Osasco', phone: '11988887777', email: 'marina@exemplo.com', message: 'Tenho 12 mesas e queria testar.', status: 'new', createdAt: now - 2 * 3600000 },
@@ -387,9 +389,15 @@ const api = {
       const o = d.orders[rid].find((x) => x.id === id);
       if (o) o.printed = false;
     }),
-  closeBill: async (rid, ids) =>
+  closeBill: async (rid, ids, callIds = [], who = null, tableId = null) =>
     commit((d) => {
+      if (tableId) {
+        if (d.tableState?.[rid]) delete d.tableState[rid][tableId];
+        if (d.orderState?.[rid]) delete d.orderState[rid][tableId];
+      }
       for (const o of d.orders[rid]) if (ids.includes(o.id)) Object.assign(o, { closed: true, closedAt: Date.now() });
+      for (const c of d.calls[rid] || [])
+        if (callIds.includes(c.id)) Object.assign(c, { status: CALL_STATUS.DONE, doneAt: Date.now(), doneBy: who?.uid || null, doneByName: cleanStaffName(who?.name) || null });
     }),
   /** Só na demonstração: simula a impressora imprimindo os pedidos pendentes. */
   demoPrintPending: async (rid) =>
@@ -564,8 +572,12 @@ const api = {
       const st = (d.orderState[rid] ||= {})[link.tableId];
       const now = Date.now();
       if (st && now < st.lastOrderAt + ORDER_COOLDOWN_SEC * 1000) return { error: 'cooldown' };
+      const day = dayKey();
+      const seq = (d.orderSeq ||= {})[rid];
+      const n = seq && seq.day === day ? seq.n + 1 : 1;
       const o = {
         id: uid(),
+        number: n,
         tableId: link.tableId,
         tableNumber: link.number,
         items,
@@ -583,7 +595,8 @@ const api = {
       };
       d.orders[rid].push(o);
       d.orderState[rid][link.tableId] = { lastOrderId: o.id, lastOrderAt: now };
-      return { ok: true, orderId: o.id };
+      d.orderSeq[rid] = { day, n, lastOrderId: o.id };
+      return { ok: true, orderId: o.id, number: n };
     });
   },
   /** Mesmas verificações que as regras do Firestore fazem no servidor. */

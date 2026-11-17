@@ -2,7 +2,7 @@
 
 Quando o cliente faz um pedido pelo cardápio da mesa, a comanda sai sozinha na cozinha. A central mostra **Comanda impressa às 15:35** no card do pedido.
 
-A comanda traz a **mesa em letra grande**, o código do pedido (ex.: `#K7Q2`), a hora, os itens com quantidade, a opção escolhida (sabor, ponto…), a observação de cada item e a observação do pedido. Não traz preços: é para a cozinha.
+A comanda traz a **mesa em letra grande**, o número do pedido no dia (ex.: Pedido 12), a hora, os itens com quantidade, a opção escolhida (sabor, ponto…), a observação de cada item e a observação do pedido. Não traz preços: é para a cozinha.
 
 > O relógio de atendimento continua sendo só para as chamadas de garçom. A impressora é um aparelho separado.
 
@@ -22,7 +22,7 @@ A comanda traz a **mesa em letra grande**, o código do pedido (ex.: `#K7Q2`), a
 2. Abra **https://espressif.github.io/esptool-js/** no Chrome ou no Edge.
 3. Clique em **Connect** e escolha a porta (geralmente "CP210x" ou "CH340").
    - Se não aparecer porta nenhuma, instale o driver da placa (CP210x ou CH340, conforme o chip escrito perto do USB).
-4. Em **Flash Address** deixe `0x0` e escolha o arquivo **`acenai-impressora-v1.0.0.bin`**.
+4. Em **Flash Address** deixe `0x0` e escolha o arquivo **`acenai-impressora-v1.0.1.bin`**.
 5. Clique em **Program** e espere chegar a 100%.
    - Se ficar parado em "Connecting…", segure o botão **BOOT** da placa até começar.
 6. Clique em **Disconnect** e aperte o botão **EN** (ou RST) da placa para reiniciar.
