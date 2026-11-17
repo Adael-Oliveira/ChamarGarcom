@@ -182,6 +182,33 @@ function friendly(e) {
 }
 const wrap = (p) => p.catch((e) => Promise.reject(friendly(e)));
 
+/** Pedido sem número (regras anteriores à numeração do dia). */
+async function createOrderLegacy({ rid, tableId, tableNumber, token, items, total, note, approval }) {
+  const ref = doc(P.orders(rid));
+  const b = writeBatch(db);
+  b.set(ref, {
+    restaurantId: rid,
+    tableId,
+    tableNumber,
+    orderId: ref.id,
+    token,
+    items,
+    total,
+    note: note || null,
+    status: approval ? ORDER_STATUS.WAITING : ORDER_STATUS.NEW,
+    createdAt: serverTimestamp(),
+    printed: false,
+    printCount: 0,
+  });
+  b.set(P.orderState(rid, tableId), { lastOrderId: ref.id, lastOrderAt: serverTimestamp() });
+  try {
+    await b.commit();
+    return { ok: true, orderId: ref.id };
+  } catch (e) {
+    return { error: e.code === 'unavailable' ? 'network' : 'rejected' };
+  }
+}
+
 // ---------------------------------------------------------------- api
 const api = {
   mode: 'firebase',
@@ -803,6 +830,8 @@ const api = {
       return { ok: true, orderId: ref.id, number: n };
     } catch (e) {
       if (e.code === 'network' || e.code === 'unavailable') return { error: 'network' };
+      // regras ainda sem a numeração do dia: grava no formato anterior (sem número)
+      if (e.code === 'permission-denied') return createOrderLegacy({ rid, tableId, tableNumber, token, items, total, note, approval });
       return { error: 'rejected' };
     } finally {
       clearTimeout(timer);
